@@ -1,0 +1,3 @@
+
+# Build Docker image for zookeeper
+docker build -t encode/zookeeper zookeeper_docker
