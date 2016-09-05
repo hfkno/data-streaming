@@ -133,9 +133,12 @@ for i in 1 .. 40 do
     curl -X DELETE \
           http://localhost:8082/consumers/my_avro_consumer/instances/my_consumer_instance
 *)
-k.
+let consumerName = "ze_test_consumer"
+k.createConsumer(consumerName)
 
-
+match k.consume(consumerName, "test3") with
+| Success str -> printf "%s" str |> ignore
+| Error msg -> printf "%s" msg |> ignore
 
 
 
