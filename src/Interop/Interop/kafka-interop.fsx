@@ -10,7 +10,6 @@
 
 *)
 
-
 #r "../packages/FSharp.Data.2.3.2/lib/net40/FSharp.Data.dll" 
 open FSharp.Data
 open System.IO
@@ -50,9 +49,10 @@ let splitJsonArray (input:Result<string,string>) =
     match input with
     | Success str ->
         match str with
-        | Exists s -> str.Replace("[", "").Replace("]", "").Replace("\"", "").Split(',')
-        | _ -> [||]
-    | Error msg -> [| msg |]
+        | Exists s -> 
+            str.Replace("[", "").Replace("]", "").Replace("\"", "").Split(',') |> Success
+        | _ -> [||] |> Success
+    | Error msg -> Error msg
 
 
 
@@ -66,6 +66,7 @@ type ConfluenceAdapter(rootUrl) =
         with 
             | :? System.Net.WebException as ex -> Error ex.Message
     member x.list(topic)  = x.request (x.url topic)
+
 
 
 (* Message topic creation *)
@@ -99,9 +100,9 @@ k.produceMessage("basictest2", """{"value_schema": "{\"type\": \"record\", \"nam
 (* Schema manipulation  *)
 type Registry(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
-    member x.listTopics()  = x.request (x.url "subjects")
-    member x.topics() = x.listTopics() |> splitJsonArray
-    member x.schema(id:int) = x.request (x.url (sprintf "schemas/ids/%i" id))
+    member x.subjects() = x.request (x.url "subjects") |> splitJsonArray
+    member x.rawSchema(id:int) = x.request (x.url (sprintf "schemas/ids/%i" id))
+    member x.subjectVersions(subject:string) = sprintf "subjects/%s/versions" subject |> x.url |> x.request
 
 
 let r = new Registry("http://localhost:8081")
@@ -111,6 +112,9 @@ r.list("schemas/ids/1")
 r.list("subjects")
 r.list("subjects/basictest2-value/versions")
 r.list("subjects/basictest-value/versions/1")
-r.listTopics()
-r.topics()
-r.schema(1)
+r.subjects()
+r.subjectVersions("basictest2-value")
+
+
+
+
