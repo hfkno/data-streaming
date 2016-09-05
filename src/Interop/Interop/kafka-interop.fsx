@@ -16,24 +16,6 @@
 open FSharp.Data
 open System.IO
 
-
-(* Basic connectivity *)
-Http.RequestString("http://localhost:8082/topics/")
-Http.RequestString("http://localhost:8082/topics/_schemas")
-
-(*
-   Post to a new topic with an included schema
-
-   curl -X POST -H "Content-Type: application/vnd.kafka.avro.v1+json" \
-        --data '{"value_schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "testUser"}}]}' \
-        "http://localhost:8082/topics/avrotest"
-*)
-Http.RequestString 
-  ( "http://localhost:8082/topics/basictest", 
-    headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ], 
-    body = TextRequest """{"value_schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}]}", "records": [{"value": {"name": "testUser"}}]}"""  )   
-
-
    
 (*
 
@@ -77,6 +59,8 @@ type Kafka(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
     member x.listTopics()  = x.request (x.url "topics")
     member x.topics() = x.listTopics() |> splitJsonArray
+    member x.topicMetadata(topic:string) = x.request (x.url (sprintf "topics/%s" topic))
+    member x.topicPartitionMetadata(topic:string) = x.request (x.url (sprintf "topics/%s/partitions" topic))
     member x.schemaPolicy() = x.request (x.url "topics/_schemas")
     member x.produceMessage(topic, msg) = 
         x.request 
@@ -97,16 +81,16 @@ type Kafka(rootUrl) =
         x.request 
          ( x.url (sprintf "consumers/my_avro_consumer/instances/%s/topics/%s" consumerName topic),
            httpMethod = "GET",
-           headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ], 
-           body = TextRequest (sprintf """{"name": "%s", "format": "avro", "auto.offset.reset": "smallest"}""" consumerName)) 
-
+           headers = [ "Accept", "application/vnd.kafka.avro.v1+json" ]) 
 
 
 let k = new Kafka("http://localhost:8082")
-
 k.listTopics()
 k.schemaPolicy()
 k.topics()
+k.topicMetadata("basictest2")
+k.topicPartitionMetadata("basictest2")
+
 
 // produding a message with Avro metadata embedded
 let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}]}""" 
@@ -115,35 +99,21 @@ let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema rec
 let topic = "test3"
 
 // Post a message with rolling data
-for i in 1 .. 40 do
+for i in 81 .. 89 do
     let postData = data.Replace("er", sprintf "er%i" i)
-    k.produceMessage(valueSchema, postData) |> ignore
+    k.produceMessage(topic, postData) |> ignore
 
-
-
-// Consume a message and show rolling data
-(*
-    curl -X POST -H "Content-Type: application/vnd.kafka.v1+json" \
-          --data '{"name": "my_consumer_instance", "format": "avro", "auto.offset.reset": "smallest"}' \
-          http://localhost:8082/consumers/my_avro_consumer
-
-    curl -X GET -H "Accept: application/vnd.kafka.avro.v1+json" \
-          http://localhost:8082/consumers/my_avro_consumer/instances/my_consumer_instance/topics/avrotest
-
-    curl -X DELETE \
-          http://localhost:8082/consumers/my_avro_consumer/instances/my_consumer_instance
-*)
+// Init consumer
 let consumerName = "ze_test_consumer"
 k.createConsumer(consumerName)
 
+// Read updated rolling data
 match k.consume(consumerName, "test3") with
 | Success str -> printf "%s" str |> ignore
 | Error msg -> printf "%s" msg |> ignore
 
-
-
-// Upgrade to a new schema with a breaking change...
-
+// Cleanup
+k.deleteConsumer(consumerName)
 
 
 
@@ -173,4 +143,4 @@ r.schema("basictest2-value", 1)
 r.listVersions()
 
 
-
+// TODO: Upgrade to a new schema with a breaking change...
