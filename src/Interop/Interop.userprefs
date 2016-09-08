@@ -1,9 +1,9 @@
 ﻿<Properties StartupItem="Interop/Interop.fsproj">
   <MonoDevelop.Ide.ItemProperties.Interop PreferredExecutionTarget="MonoDevelop.Default" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="Interop/kafka-interop.fsx">
+  <MonoDevelop.Ide.Workbench ActiveDocument="Interop/akka_basics.fsx">
     <Files>
-      <File FileName="Interop/kafka-interop.fsx" Line="43" Column="6" />
-      <File FileName="Interop/docker-operations.fsx" Line="5" Column="27" />
+      <File FileName="Interop/kafka-interop.fsx" Line="15" Column="1" />
+      <File FileName="Interop/akka_basics.fsx" Line="10" Column="62" />
     </Files>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />

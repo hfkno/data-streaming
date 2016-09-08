@@ -1,0 +1,5 @@
+source https://www.nuget.org/api/v2
+nuget Akka
+nuget Akka.DI.Autofac
+nuget Akka.FSharp
+nuget Akka.TestKit.NUnit3
