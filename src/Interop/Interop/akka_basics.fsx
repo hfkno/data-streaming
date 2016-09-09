@@ -23,7 +23,6 @@ open Akka.FSharp
 
 
 
-
 (* 
 
     Basic messaging functionality 
@@ -98,6 +97,7 @@ simpleSystem.Terminate()
 
 
 
+
 (*
 
     Event Stream
@@ -113,7 +113,7 @@ simpleSystem.Terminate()
 let eventSystem = ActorSystem.Create("event-stream")
 
 let streamServer = 
-    spawn eventSystem "EchoServer"
+    spawn eventSystem "streamed-echo"
     <| fun mailbox ->
         let rec loop() =
             actor {
@@ -129,9 +129,55 @@ let streamServer =
 
 let eventStream = eventSystem.EventStream
 
-eventStream.Subscribe(echoServer, typedefof<string>)
+eventStream.Subscribe(streamServer, typedefof<string>)
 
 eventStream.Publish("Anybody home?")
 eventStream.Publish("Knock knock")
 
 eventSystem.Terminate()
+
+
+
+(*
+
+    Typed Messages & Behaviour swapping
+
+    Returning seperate handler functions based on user configurable logic
+
+*)
+
+type TypedMessages =
+    | Hello of string
+    | Hi
+
+let typedSystem = ActorSystem.Create("typed-messages")
+
+let typedServer = 
+    spawn typedSystem "EchoServer"
+    <| fun mailbox ->
+        let rec replyInRussian() =
+            actor {
+                let! message = mailbox.Receive()
+                match message with
+                | Hello name -> printfn "Привіт %s" name
+                | Hi -> printfn "Привіт!"
+
+                return! replyInEnglish()
+            } 
+        and replyInEnglish() =
+            actor {
+                let! message = mailbox.Receive()
+                match message with
+                | Hello name -> printfn "Hello there %s..." name
+                | Hi -> printfn "Hallo!"
+
+                return! replyInRussian()
+            } 
+
+        replyInRussian()
+
+typedServer <! Hello "Major Obstruction"
+typedServer <! Hello "Mr"
+typedServer <! Hi
+
+typedSystem.Terminate()
