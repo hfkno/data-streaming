@@ -22,11 +22,14 @@ open Akka.FSharp
 
 
 
+
+
 (* 
 
     Basic messaging functionality 
 
 *)
+
 type Greet(who) = 
     member x.Who = who
 
@@ -35,12 +38,12 @@ type GreetingActor() as g =
     do g.Receive<Greet>
         (fun (greet:Greet) -> printfn "\r\nReceived a greeting, hello: %s\r\n" greet.Who)
 
-let system = ActorSystem.Create("greeting-system")
-let greeter = system.ActorOf<GreetingActor> "greeter-actor"
+let greetingSystem = ActorSystem.Create("greeting-system")
+let greeter = greetingSystem.ActorOf<GreetingActor> "greeter-actor"
 
 "world" |> Greet |> greeter.Tell
 
-system.Terminate()
+greetingSystem.Terminate()
 
 
 
@@ -61,16 +64,74 @@ type EchoServer =
         | :? string as msg -> printfn "Hello %s\r\n" msg
         | _ ->  failwith "unknown message"
 
-let sys = ActorSystem.Create("FSharp")
-let echoServer = sys.ActorOf(Props(typedefof<EchoServer>, Array.empty))
+let echoSystem = ActorSystem.Create("echo-server")
+let echo = echoSystem.ActorOf(Props(typedefof<EchoServer>, Array.empty))
+
+echo <! "F#!"
+
+echoSystem.Terminate()
+
+
+
+
+
+(* 
+    
+    Simplified actor definition 
+
+*)
+
+let simpleSystem = ActorSystem.Create("simple-actor")
+
+let echoServer = 
+    spawn simpleSystem "echo-server"
+    <| fun mailbox ->
+            actor {
+                let! message = mailbox.Receive()
+                match box message with
+                | :? string as msg -> printfn "Hello %s\r\n" msg
+                | _ ->  failwith "unknown message"
+            } 
 
 echoServer <! "F#!"
-
-sys.Terminate()
-
+simpleSystem.Terminate()
 
 
 
+(*
 
-Configuration.defaultConfig()
-//use sys = System.create "my-greeting-system" ()
+    Event Stream
+
+    The event stream is the main event bus of each actor system: 
+
+        it is used for carrying log messages and Dead Letters and may be used by the user code 
+        for other purposes as well. It uses Subchannel Classification which enables registering 
+        to related sets of channels
+
+*)
+
+let eventSystem = ActorSystem.Create("event-stream")
+
+let streamServer = 
+    spawn eventSystem "EchoServer"
+    <| fun mailbox ->
+        let rec loop() =
+            actor {
+                let! message = mailbox.Receive()
+                match box message with
+                | :? string -> 
+                    printfn "Echo '%s'" message
+                    return! loop()
+                | _ ->  failwith "unknown message"
+            } 
+        loop()
+
+
+let eventStream = eventSystem.EventStream
+
+eventStream.Subscribe(echoServer, typedefof<string>)
+
+eventStream.Publish("Anybody home?")
+eventStream.Publish("Knock knock")
+
+eventSystem.Terminate()
