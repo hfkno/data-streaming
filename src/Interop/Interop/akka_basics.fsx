@@ -216,6 +216,7 @@ typedSystem.Terminate()
 *)
 
 let functionSystem = ActorSystem.Create("function-system")
+
 let actorOfSink (f: 'a -> unit) = actorOf2 (fun _ msg -> f msg)
 let print msg = printfn "Message recieved: %A" msg
 
@@ -254,7 +255,65 @@ squareActorRef <! 9
 
     State management in functions
 
+    Using a recursive actor definition which will return a new actor based on the initial state
+    This preserves functional immutability while maintaining state
+
 *)
 
+let printIndex index msg =
+  printfn "Message [%i] received: %A" index msg
+  index + 1
 
+let actorOfStatefulSink f initialState (mailbox : Actor<'a>) =
+
+  let rec imp lastState =
+    actor {
+      let! msg = mailbox.Receive()
+      let newState = f lastState msg
+      return! imp newState
+    }
+
+  imp initialState
+
+let printIndexActorRef = 
+  actorOfStatefulSink printIndex 1
+  |> spawn functionSystem "print-ix-actor"
+
+printIndexActorRef <! 3
+printIndexActorRef <! 5
+
+
+
+(*
+
+    ...
+
+    Stateful Conversion
+
+    A new actor is sent the processing result while the state is preserved
+
+*)
+
+let squareAndSum sum msg =
+  let result = sum + (msg * msg)
+  (result, result)
+
+let actorOfStatefulConvert f initialState outputRef (mailbox : Actor<'a>) =
+
+  let rec imp lastState =
+    actor {
+      let! msg = mailbox.Receive()
+      let (result, newState) = f msg lastState
+      outputRef <! result
+      return! imp newState
+    }
+
+  imp initialState
+
+let squareAndSumActorRef = 
+  actorOfStatefulConvert squareAndSum 0 printIndexActorRef
+  |> spawn functionSystem "square-sum-actor"
+
+squareAndSumActorRef <! 3
+squareAndSumActorRef <! 4
 
