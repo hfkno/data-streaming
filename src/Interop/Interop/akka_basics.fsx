@@ -23,6 +23,26 @@ open Akka.FSharp
 
 
 
+(*
+
+    An actor is a container for State, Behavior, a Mailbox, Children and a Supervisor Strategy.
+
+    An “Actor” is really just an analog for human participants in a system. 
+
+    An Actor:
+
+        knows what kind of messages it can accept
+        does some processing of each message
+        can hold some state which is changed during message processing
+        potentially changes its behavior based on the current state
+        creates and stores references to child actors
+        obtains references to other actors
+        sends messages to children and other actors
+
+*)
+
+
+
 (* 
 
     Basic messaging functionality 
@@ -138,6 +158,8 @@ eventSystem.Terminate()
 
 
 
+
+
 (*
 
     Typed Messages & Behaviour swapping
@@ -181,3 +203,58 @@ typedServer <! Hello "Mr"
 typedServer <! Hi
 
 typedSystem.Terminate()
+
+
+
+
+(*
+
+    Defining a simplified actor based on functions
+
+    ...
+
+*)
+
+let functionSystem = ActorSystem.Create("function-system")
+let actorOfSink (f: 'a -> unit) = actorOf2 (fun _ msg -> f msg)
+let print msg = printfn "Message recieved: %A" msg
+
+let printActorRef = 
+  actorOfSink print 
+  |> spawn functionSystem "print-actor"
+
+printActorRef <! 123
+printActorRef <! "hello"
+
+
+(*
+    ...
+
+    Defining a stateless converter
+    Accepts a message and sends it to another actor in a specified format
+
+*)
+
+let square msg = msg * msg
+
+let actorOfConvert f outputRef = 
+    actorOf2 (fun _ msg -> outputRef <! f msg)
+
+let squareActorRef =
+    actorOfConvert square printActorRef
+    |> spawn functionSystem "square-actor"
+
+squareActorRef <! 9
+
+
+
+(* 
+
+    ...
+
+    State management in functions
+
+*)
+
+
+
