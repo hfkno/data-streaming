@@ -15,6 +15,7 @@
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 
+open System
 open Akka
 open Akka.Actor
 open Akka.Configuration
@@ -115,6 +116,33 @@ let echoServer =
 echoServer <! "F#!"
 simpleSystem.Terminate()
 
+
+
+
+
+
+(* 
+
+    Imperative and functional definition comparison of message handling
+
+*)
+
+
+// Imperative implementation of an Actor using F#
+type MyActor() =
+    inherit UntypedActor()
+
+    override x.OnReceive message =
+        match message with
+        | :? string as msg -> Console.WriteLine msg
+        | _ -> x.Unhandled message
+
+
+// Functional implementation of an Actor
+let myActor (mailbox:Actor<_>) (message:obj) =
+    match message with
+    | :? string as msg -> Console.WriteLine msg
+    | _ -> mailbox.Unhandled message
 
 
 
@@ -317,3 +345,41 @@ let squareAndSumActorRef =
 squareAndSumActorRef <! 3
 squareAndSumActorRef <! 4
 
+
+
+
+
+
+
+
+(*
+
+    Basic child definition and message passing
+
+*)
+
+
+let firstChildActor (mailbox:Actor<_>) =
+  let rec loop() = actor {
+      let! message = mailbox.Receive()
+      printfn "Child says: %A" message
+      return! loop()
+  }
+  loop()
+
+
+let firstActor (mailbox:Actor<_>) =
+  let myFirstChildActor = spawn mailbox.Context "myFirstChildActor" firstChildActor
+
+  let rec loop() = actor {
+      let! message = mailbox.Receive()
+      printfn "Parent says: %A" message
+      myFirstChildActor <! message
+      return! loop()
+  }
+  loop()
+
+let myActorSystem = ActorSystem.Create("parent-child")
+let myFirstActor = spawn myActorSystem "myFirstActor" firstActor
+myFirstActor <! "Hello"
+myActorSystem.Terminate()

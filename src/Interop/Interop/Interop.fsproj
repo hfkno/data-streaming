@@ -94,6 +94,10 @@
     <None Include="packages.config" />
     <None Include="docker-operations.fsx" />
     <None Include="akka_basics.fsx" />
+    <None Include="bootcamp_ch_1.fsx" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Bootcamp\" />
   </ItemGroup>
   <Import Project="$(FSharpTargetsPath)" />
 </Project>
