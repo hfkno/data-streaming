@@ -3,7 +3,7 @@
   <MonoDevelop.Ide.Workbench ActiveDocument="Interop/akka_basics.fsx">
     <Files>
       <File FileName="Interop/kafka-interop.fsx" Line="15" Column="1" />
-      <File FileName="Interop/akka_basics.fsx" Line="10" Column="62" />
+      <File FileName="Interop/akka_basics.fsx" Line="320" Column="1" />
     </Files>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
