@@ -14,6 +14,7 @@
 #r "../../packages/Akka.Serialization.Wire/lib/net45/Akka.Serialization.Wire.dll"
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
+#r "../../packages/FSPowerPack.Core.Community/Lib/net40/FSharp.PowerPack.dll"
 
 open System
 open Akka
@@ -383,3 +384,32 @@ let myActorSystem = ActorSystem.Create("parent-child")
 let myFirstActor = spawn myActorSystem "myFirstActor" firstActor
 myFirstActor <! "Hello"
 myActorSystem.Terminate()
+
+
+
+
+
+
+(*
+
+    Self referential handler using Async reading and a simplified handler setup
+
+*)
+
+open System.IO
+
+let handler (mailbox: Actor<obj>) msg =
+    match box msg with
+    | :? FileInfo as fi ->
+        let reader = new AsyncStreamReader(fi.OpenRead())
+        reader.ReadToEnd() |!> mailbox.Self
+    | :? string as content ->
+        printfn "File content: %s" content
+    | _ -> mailbox.Unhandled()
+
+let spawnSystem = ActorSystem.Create("parent-child")
+let aref = spawn spawnSystem "my-actor" (actorOf2 handler)
+aref <! new FileInfo "Akka.xml"
+spawnSystem.Terminate()
+
+

@@ -5,3 +5,6 @@ nuget Akka.FSharp
 nuget Akka.Serialization.Wire
 nuget Akka.TestKit.NUnit3
 nuget FsPickler
+nuget FsPowerPack.Community
+nuget FsPowerPack.Core.Community
+nuget FsPowerPack.Linq.Community
