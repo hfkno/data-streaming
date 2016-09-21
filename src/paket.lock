@@ -32,8 +32,16 @@ NUGET
       NETStandard.Library (>= 1.6.0)
       System.ComponentModel (>= 4.0.1)
     FsPickler (3.1.0)
+    FSPowerPack.Community (3.0.0)
+      FSPowerPack.Linq.Community
+      FSPowerPack.Metadata.Community
+      FSPowerPack.Parallel.Seq.Community
     FSPowerPack.Core.Community (3.0.0)
     FSPowerPack.Linq.Community (3.0.0)
+      FSPowerPack.Core.Community
+    FSPowerPack.Metadata.Community (3.0.0)
+      FSPowerPack.Core.Community
+    FSPowerPack.Parallel.Seq.Community (3.0.0)
       FSPowerPack.Core.Community
     Microsoft.CSharp (4.0.1)
       System.Collections (>= 4.0.11)
