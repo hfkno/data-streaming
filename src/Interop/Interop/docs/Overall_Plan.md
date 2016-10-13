@@ -22,7 +22,7 @@
 
 
 
-### Dataflytt platform
+### Holistic integration platform
 
   o Basic message transfer
   	o Web -> Akka.Net -> RabbitMq -> Kafka
