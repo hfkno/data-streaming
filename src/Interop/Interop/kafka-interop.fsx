@@ -132,16 +132,16 @@ k.deleteConsumer(consumerName)
 
 
 (* Schema manipulation  *)
-type Registry(rootUrl) =
+type SchemaRegistry(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
     member x.subjects() = x.request (x.url "subjects") |> splitJsonArray
-    member x.rawSchema(id:int) = x.request (x.url (sprintf "schemas/ids/%i" id))
     member x.subjectVersions(subject:string) = sprintf "subjects/%s/versions" subject |> x.getUrl
-    member x.latestSchema(subject:string) = sprintf "subjects/%s/versions/latest" subject |> x.getUrl
     member x.schema(subject:string, id:int) = sprintf "subjects/%s/versions/%i" subject id |> x.getUrl
-    member x.registerSchema(topic, schema) = 
+    member x.schemaById(id:int) = sprintf "schemas/ids/%i" id |> x.getUrl
+    member x.latestSchema(subject:string) = sprintf "subjects/%s/versions/latest" subject |> x.getUrl    
+    member x.registerSchema(subject, schema) = 
         x.request
-          ( x.url "subjects/" + topic + "/versions",
+          ( x.url (sprintf "subjects/%s/versions" subject),
             headers = [ "Content-Type", "application/vnd.schemaregistry.v1+json" ],
             httpMethod = "POST",
             body = TextRequest schema)
@@ -158,22 +158,18 @@ type Registry(rootUrl) =
                 match x.subjectVersions(s) with
                 | Success v -> printf "%s %s\r\n" s v
                 | Error msg -> printf "%s" msg
-        | Error msg ->
-            printf "%s" msg
+        | Error msg -> failwith msg
 
 
-let r = new Registry("http://localhost:8081")
-r.registerSchema("randotesto2" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" } ] }"}""")
-r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
+let r = new SchemaRegistry("http://localhost:8081")
+
 r.subjects()
-r.subjectVersions("basictest2-value")
+r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
 r.subjectVersions("randotesto3-value")
 r.schema("randotesto3-value", 1)
 r.latestSchema("randotesto3-value")
 r.latestSchemaVersion("randotesto3-value")
-r.latestSchemaVersion("testing-value")
 r.listVersions()
 
 
 // TODO: Upgrade to a new schema with a breaking change...
-// TODO: Harmonize the language for the Registry API: subjects vs topics vs schemas etc...
