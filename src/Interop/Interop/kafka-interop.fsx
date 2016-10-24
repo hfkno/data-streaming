@@ -93,18 +93,28 @@ k.topicPartitionMetadata("basictest2")
 
 
 // produding a message with Avro metadata embedded
-let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}]}"""
-let records = """{"value": {"name": "testUser"}}"""
+//let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" } ] }""" //, { \"name2\": \"name2\", \"type\": \"string\" }
+
+// errors are not being reported on creation...
+let valueSchema = """{ \"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"""
+let records = """{"value": {"name": "testUser", "nameo": "hi"}}"""
 let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
 
-let valueSchemaId = 96
+let valueSchemaId = 1
 let dataId = sprintf """{"value_schema_id": "%i", "records": [%s]}""" valueSchemaId records
 
-let topic = "test3"
+let topic = "testing_6"
 
 // Post a message with rolling data
 for i in 81 .. 89 do
-    let postData = data.Replace("er", sprintf "er%i" i)
+    let postData = data.Replace("testUser", sprintf "testUser%i" i)
+    k.produceMessage(topic, postData) |> ignore
+
+
+
+// Post a message with rolling data - known schema
+for i in 91 .. 99 do
+    let postData = dataId.Replace("testUser", sprintf "testUser%i" i)
     k.produceMessage(topic, postData) |> ignore
 
 // Init consumer
@@ -112,7 +122,7 @@ let consumerName = "ze_test_consumer"
 k.createConsumer(consumerName)
 
 // Read updated rolling data
-match k.consume(consumerName, "test3") with
+match k.consume(consumerName, "testing_1") with
 | Success str -> printf "%s" str |> ignore
 | Error msg -> printf "%s" msg |> ignore
 
@@ -129,6 +139,12 @@ type Registry(rootUrl) =
     member x.rawSchema(id:int) = x.request (x.url (sprintf "schemas/ids/%i" id))
     member x.subjectVersions(subject:string) = sprintf "subjects/%s/versions" subject |> x.getUrl
     member x.schema(subject:string, id:int) = sprintf "subjects/%s/versions/%i" subject id |> x.getUrl
+    member x.registerSchema(topic, schema) = 
+        x.request
+          ( x.url "subjects/" + topic + "/versions",
+            headers = [ "Content-Type", "application/vnd.schemaregistry.v1+json" ],
+            httpMethod = "POST",
+            body = TextRequest schema)
     member x.listVersions() =
         match x.subjects() with
         | Success subjects ->
@@ -141,6 +157,8 @@ type Registry(rootUrl) =
 
 
 let r = new Registry("http://localhost:8081")
+r.registerSchema("randotesto2" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" } ] }"}""")
+r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
 r.subjects()
 r.subjectVersions("basictest2-value")
 r.schema("basictest2-value", 1)
