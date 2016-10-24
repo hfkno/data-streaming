@@ -15,6 +15,7 @@
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 open FSharp.Data
 open System.IO
+open System.Linq
 
 
 (*
@@ -57,11 +58,11 @@ type ConfluenceAdapter(rootUrl) =
 (* Message topic creation *)
 type Kafka(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
-    member x.listTopics()  = x.request (x.url "topics")
+    member x.listTopics()  = "topics" |> x.getUrl
     member x.topics() = x.listTopics() |> splitJsonArray
-    member x.topicMetadata(topic:string) = x.request (x.url (sprintf "topics/%s" topic))
-    member x.topicPartitionMetadata(topic:string) = x.request (x.url (sprintf "topics/%s/partitions" topic))
-    member x.schemaPolicy() = x.request (x.url "topics/_schemas")
+    member x.topicMetadata(topic:string) = sprintf "topics/%s" topic |> x.getUrl
+    member x.topicPartitionMetadata(topic:string) = sprintf "topics/%s/partitions" topic |> x.getUrl
+    member x.schemaPolicy() = "topics/_schemas" |> x.getUrl
     member x.produceMessage(topic, msg) =
         x.request
           ( x.url "topics/" + topic,
@@ -94,8 +95,6 @@ k.topicPartitionMetadata("basictest2")
 
 // produding a message with Avro metadata embedded
 //let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" } ] }""" //, { \"name2\": \"name2\", \"type\": \"string\" }
-
-// errors are not being reported on creation...
 let valueSchema = """{ \"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"""
 let records = """{"value": {"name": "testUser", "nameo": "hi"}}"""
 let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
@@ -138,6 +137,7 @@ type Registry(rootUrl) =
     member x.subjects() = x.request (x.url "subjects") |> splitJsonArray
     member x.rawSchema(id:int) = x.request (x.url (sprintf "schemas/ids/%i" id))
     member x.subjectVersions(subject:string) = sprintf "subjects/%s/versions" subject |> x.getUrl
+    member x.latestSchema(subject:string) = sprintf "subjects/%s/versions/latest" subject |> x.getUrl
     member x.schema(subject:string, id:int) = sprintf "subjects/%s/versions/%i" subject id |> x.getUrl
     member x.registerSchema(topic, schema) = 
         x.request
@@ -145,6 +145,12 @@ type Registry(rootUrl) =
             headers = [ "Content-Type", "application/vnd.schemaregistry.v1+json" ],
             httpMethod = "POST",
             body = TextRequest schema)
+    member x.latestSchemaVersion(subject:string) =
+        match x.subjectVersions(subject) with
+        | Success versionArr -> 
+            let v = versionArr.Replace("[", "").Replace("]", "").Split(',')
+            System.Int32.Parse(v.Last())
+        | Error msg -> failwith msg
     member x.listVersions() =
         match x.subjects() with
         | Success subjects ->
@@ -161,8 +167,13 @@ r.registerSchema("randotesto2" + "-value", """{"schema": "{\"type\": \"record\",
 r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
 r.subjects()
 r.subjectVersions("basictest2-value")
-r.schema("basictest2-value", 1)
+r.subjectVersions("randotesto3-value")
+r.schema("randotesto3-value", 1)
+r.latestSchema("randotesto3-value")
+r.latestSchemaVersion("randotesto3-value")
+r.latestSchemaVersion("testing-value")
 r.listVersions()
 
 
 // TODO: Upgrade to a new schema with a breaking change...
+// TODO: Harmonize the language for the Registry API: subjects vs topics vs schemas etc...
