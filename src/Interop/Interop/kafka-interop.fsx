@@ -96,6 +96,10 @@ k.topicPartitionMetadata("basictest2")
 let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}]}"""
 let records = """{"value": {"name": "testUser"}}"""
 let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
+
+let valueSchemaId = 96
+let dataId = sprintf """{"value_schema_id": "%i", "records": [%s]}""" valueSchemaId records
+
 let topic = "test3"
 
 // Post a message with rolling data
