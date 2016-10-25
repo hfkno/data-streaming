@@ -112,10 +112,17 @@ type User =
         Title : string
         Email : string
         Department : string
+        CamelCase : string
     }
 
-let atest = { Id = 0; Name = "Amber Allad"; Title="Junior Janitor"; Email = "aa@hfk.no"; Department = "Sanitation"  }
+let atest = { Id = 0; Name = "Amber Allad"; Title="Junior Janitor"; Email = "aa@hfk.no"; Department = "Sanitation"; CamelCase = "here"  }
 
+
+let toJson o =
+    JsonConvert.SerializeObject(o, new JsonSerializerSettings(ContractResolver = new Serialization.CamelCasePropertyNamesContractResolver()))
+
+
+atest |> toJson
 
 JsonConvert.SerializeObject(atest)
 
@@ -168,15 +175,18 @@ k.deleteConsumer(consumerName)
 type SchemaRegistry(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
 
-    member x.subjects() = x.request (x.url "subjects") |> splitJsonArray
+    let extractSchema (json:string) =
+        let schemaStart = json.IndexOf("schema\":\"") + 9
+        let schema = json.Substring(schemaStart, json.Length - schemaStart - 2)
+        JToken.Parse(schema).ToString()
 
+    member x.subjects() = "subjects" |> x.getUrl |> splitJsonArray
+    
     member x.subjectVersions(subject:string) = sprintf "subjects/%s/versions" subject |> x.getUrl
 
-    member x.schema(subject:string, id:int) = sprintf "subjects/%s/versions/%i" subject id |> x.getUrl
+    member x.schema(subject:string, version:int) = sprintf "subjects/%s/versions/%i" subject version |> x.getUrl
 
-    member x.schemaById(id:int) = sprintf "schemas/ids/%i" id |> x.getUrl
-
-    member x.latestSchema(subject:string) = sprintf "subjects/%s/versions/latest" subject |> x.getUrl    
+    member x.schema(schemaId:int) = sprintf "schemas/ids/%i" schemaId |> x.getUrl
 
     member x.registerSchema(subject, schema) = 
         x.request
@@ -184,6 +194,14 @@ type SchemaRegistry(rootUrl) =
             headers = [ "Content-Type", "application/vnd.schemaregistry.v1+json" ],
             httpMethod = "POST",
             body = TextRequest schema)
+
+    member x.subjectStatus(subject:string) =
+        sprintf "subjects/%s/versions/latest" subject |> x.getUrl
+            
+    member x.latestSchema(subject:string) = 
+        match x.subjectStatus(subject) with
+        | Success json -> json |> extractSchema
+        | Error msg -> failwith msg
 
     member x.latestSchemaVersion(subject:string) =
         match x.subjectVersions(subject) with
@@ -199,6 +217,18 @@ type SchemaRegistry(rootUrl) =
                 | Success v -> printf "%s %s\r\n" s v
                 | Error msg -> printf "%s" msg
         | Error msg -> failwith msg
+
+    member x.currentSchemaId(subject:string) =
+        match x.subjectStatus(subject) with
+        | Success json -> 
+            let jo = JsonConvert.DeserializeObject(json)
+            printf "%O" jo
+            123
+        | Error msg -> failwith msg
+
+
+    // TODO: move the following logic out to a "Repository" for cleanliness...
+
 
     member x.forEachVersion filter func = 
         match x.subjects() with
@@ -252,16 +282,44 @@ type SchemaRegistry(rootUrl) =
 
 
 let r = new SchemaRegistry("http://localhost:8081")
+
+r.subjectVersions("activedirectoryuser-value")
+r.latestSchemaVersion("activedirectoryuser-value")
+r.currentSchemaId("ad_user-value")
+r.schema(17)
+
+let subject = "ad_user-value"
+r.latestSchema(subject)
+
+match r.subjectStatus(subject) with
+| Success json -> 
+    let schemaInfoEnd = json.IndexOf(",\"schema\":\"")
+    let schema = json.Substring(0, schemaInfoEnd) + "}"
+    let wrappedSchema = JToken.Parse(schema).ToString(Formatting.None)
+    let escapedSchema = JsonConvert.ToString(wrappedSchema)
+    
+    printf "%s" (wrappedSchema.ToString())
+    //let token = JToken.Parse(json)
+    //printf "%O" token
+//    let jo = JsonConvert.DeserializeObject(json)
+//    printf "%O" jo
+    123
+| Error msg -> failwith msg
+
+
+r.latestSchema("ad_user-value")
+//r.schema()
+
+
 r.loadSchemas("C:\\proj\\poc\\models")
-
-
 
 r.writeSchemas("C:\\proj\\test")
 
 r.subjects()
+
 r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
 r.subjectVersions("randotesto3-value")
-r.subjectVersions("aduser-value")
+r.subjectVersions("ad_user-value")
 r.schema("randotesto3-value", 1)
 r.latestSchema("randotesto3-value")
 r.latestSchemaVersion("randotesto3-value")
