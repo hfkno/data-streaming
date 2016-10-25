@@ -182,11 +182,23 @@ type SchemaRegistry(rootUrl) =
 
     member x.subjects() = "subjects" |> x.getUrl |> splitJsonArray
     
-    member x.subjectVersions(subject:string) = sprintf "subjects/%s/versions" subject |> x.getUrl
+    member x.subjectVersions(subject:string) = 
+        let getVersions = sprintf "subjects/%s/versions" subject |> x.getUrl
+        match getVersions with
+        | Success versionArray -> versionArray |> splitIntArray
+        | Error msg -> failwith msg
 
-    member x.schema(subject:string, version:int) = sprintf "subjects/%s/versions/%i" subject version |> x.getUrl
+    member x.schema(subject:string, version:int) = 
+        let getSchema = sprintf "subjects/%s/versions/%i" subject version |> x.getUrl
+        match getSchema with
+        | Success json -> json |> extractSchema
+        | Error msg -> failwith msg
 
-    member x.schema(schemaId:int) = sprintf "schemas/ids/%i" schemaId |> x.getUrl
+    member x.schema(schemaId:int) = 
+        let getSchema = sprintf "schemas/ids/%i" schemaId |> x.getUrl
+        match getSchema with
+        | Success json -> json |> extractSchema
+        | Error msg -> failwith msg
 
     member x.registerSchema(subject, schema) = 
         x.request
@@ -203,19 +215,14 @@ type SchemaRegistry(rootUrl) =
         | Success json -> json |> extractSchema
         | Error msg -> failwith msg
 
-    member x.latestSchemaVersion(subject:string) =
-        match x.subjectVersions(subject) with
-        | Success versionArr -> 
-            (versionArr |> splitIntArray).Last()
-        | Error msg -> failwith msg
+    member x.latestSchemaVersion(subject:string) = x.subjectVersions(subject).Last()
 
     member x.listVersions() =
         match x.subjects() with
         | Success subjects ->
             for s in subjects do
-                match x.subjectVersions(s) with
-                | Success v -> printf "%s %s\r\n" s v
-                | Error msg -> printf "%s" msg
+                let v = x.subjectVersions(s)
+                printf "%s %A\r\n" s v
         | Error msg -> failwith msg
 
     member x.currentSchemaId(subject:string) =
@@ -234,9 +241,8 @@ type SchemaRegistry(rootUrl) =
         match x.subjects() with
         | Success subjects ->
             for s in subjects |> Array.filter filter do
-                match x.subjectVersions(s) with
-                | Success v -> func x s v
-                | Error msg -> failwith msg
+                let v = x.subjectVersions(s)
+                func x s v
         | Error msg -> failwith msg
 
     member x.writeSchemas toFolder = 
@@ -244,17 +250,12 @@ type SchemaRegistry(rootUrl) =
         let topicFilter (s:string) = not (s.StartsWith("logs") || s.StartsWith("coyote"))
 
         let writeSchema (registry:SchemaRegistry) subject versions =
-            for v in  versions |> splitIntArray do
-                match registry.schema(subject, v) with
-                | Success wrappedSchema -> 
-                    let schemaStart = wrappedSchema.IndexOf("schema\":\"") + 9
-                    let schema = wrappedSchema.Substring(schemaStart, wrappedSchema.Length - schemaStart - 2)
-                    let targetDir = sprintf "%s\\%s" toFolder subject
-                    let fileTarget = sprintf "%s\\%s.v%04i.avsc" targetDir subject v
-                    Directory.CreateDirectory(targetDir) |> ignore
-                    let jt = JToken.Parse(schema)
-                    File.WriteAllText(fileTarget, jt.ToString())
-                | Error msg -> failwith msg
+            for v in versions do
+                let schema = registry.schema(subject, v)
+                let targetDir = sprintf "%s\\%s" toFolder subject
+                let fileTarget = sprintf "%s\\%s.v%04i.avsc" targetDir subject v
+                Directory.CreateDirectory(targetDir) |> ignore
+                File.WriteAllText(fileTarget, schema)
 
         x.forEachVersion topicFilter writeSchema
 
