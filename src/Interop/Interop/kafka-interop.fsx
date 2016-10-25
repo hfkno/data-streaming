@@ -129,17 +129,19 @@ k.topicPartitionMetadata("basictest2")
 
 
 // produding a message with Avro metadata embedded
-let valueSchema = """{ \"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"""
-let records = """{"value": {"Name": "testUser", "Nameo": "hi"}}"""
+let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ]}"""
+let records = """{"value": {"name": "testUser", "nameo": "erro"}}"""
 let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
 let valueSchemaId = 1
 let dataId = sprintf """{"value_schema_id": "%i", "records": [%s]}""" valueSchemaId records
-let topic = "testing_6"
+let topic = "testing_8"
 
 // Post a message with rolling data
-for i in 81 .. 89 do
+for i in 21 .. 29 do
     let postData = data.Replace("testUser", sprintf "testUser%i" i)
-    k.produceMessage(topic, postData) |> ignore
+    match k.produceMessage(topic, postData) with
+    | Success msg -> printf "%s" msg |> ignore
+    | Error msg -> failwith msg
 
 // Post a message with rolling data - known schema
 for i in 91 .. 99 do
