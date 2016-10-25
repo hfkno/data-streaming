@@ -105,6 +105,21 @@ type Kafka(rootUrl) =
            headers = [ "Accept", "application/vnd.kafka.avro.v1+json" ])
 
 
+type User = 
+    {
+        Id : int
+        Name : string
+        Title : string
+        Email : string
+        Department : string
+    }
+
+let atest = { Id = 0; Name = "Amber Allad"; Title="Junior Janitor"; Email = "aa@hfk.no"; Department = "Sanitation"  }
+
+
+JsonConvert.SerializeObject(atest)
+
+
 let k = new Kafka("http://localhost:8082")
 k.listTopics()
 k.schemaPolicy()
@@ -114,9 +129,8 @@ k.topicPartitionMetadata("basictest2")
 
 
 // produding a message with Avro metadata embedded
-//let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" } ] }""" //, { \"name2\": \"name2\", \"type\": \"string\" }
 let valueSchema = """{ \"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"""
-let records = """{"value": {"name": "testUser", "nameo": "hi"}}"""
+let records = """{"value": {"Name": "testUser", "Nameo": "hi"}}"""
 let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
 let valueSchemaId = 1
 let dataId = sprintf """{"value_schema_id": "%i", "records": [%s]}""" valueSchemaId records
@@ -143,6 +157,7 @@ match k.consume(consumerName, "testing_1") with
 
 // Cleanup
 k.deleteConsumer(consumerName)
+
 
 
 
@@ -224,7 +239,9 @@ type SchemaRegistry(rootUrl) =
 
         for schemaFile in schemata do
             let subject, version = subjectFromFile schemaFile
-            let schema = JsonConvert.ToString(File.ReadAllText(schemaFile))
+            let schemaContent = JObject.Parse(File.ReadAllText(schemaFile)).ToString(Formatting.None)
+            let schema = sprintf """{"schema": %s}""" (JsonConvert.ToString(schemaContent))
+            printfn "registering: %s %s" subject schema
             match x.registerSchema(subject, schema) with
             | Success s -> ignore
             | Error msg -> failwith msg
@@ -232,17 +249,17 @@ type SchemaRegistry(rootUrl) =
 
 
 
-
-let rrr = """{  "type": "record",  "name": "User82",  "fields": [    {      "name": "name",      "type": "string"    }  ]}"""
-let s = JsonConvert.ToString(rrr)
-
 let r = new SchemaRegistry("http://localhost:8081")
+r.loadSchemas("C:\\proj\\poc\\models")
+
+
 
 r.writeSchemas("C:\\proj\\test")
 
 r.subjects()
 r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
 r.subjectVersions("randotesto3-value")
+r.subjectVersions("aduser-value")
 r.schema("randotesto3-value", 1)
 r.latestSchema("randotesto3-value")
 r.latestSchemaVersion("randotesto3-value")
