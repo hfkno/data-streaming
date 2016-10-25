@@ -12,10 +12,13 @@
 
 *)
 
+#r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 open FSharp.Data
+open Newtonsoft.Json.Linq
 open System.IO
 open System.Linq
+
 
 
 (*
@@ -38,7 +41,9 @@ let splitJsonArray (input:Result<string,string>) =
             str.Replace("[", "").Replace("]", "").Replace("\"", "").Split(',') |> Success
         | _ -> [||] |> Success
     | Error msg -> Error msg
-
+let splitIntArray (input:string) =
+    input.Replace("[", "").Replace("]", "").Split(',') 
+    |> Array.map (fun n -> System.Int32.Parse(n))
 
 
 type ConfluenceAdapter(rootUrl) =
@@ -148,8 +153,7 @@ type SchemaRegistry(rootUrl) =
     member x.latestSchemaVersion(subject:string) =
         match x.subjectVersions(subject) with
         | Success versionArr -> 
-            let v = versionArr.Replace("[", "").Replace("]", "").Split(',')
-            System.Int32.Parse(v.Last())
+            (versionArr |> splitIntArray).Last()
         | Error msg -> failwith msg
     member x.listVersions() =
         match x.subjects() with
@@ -159,9 +163,36 @@ type SchemaRegistry(rootUrl) =
                 | Success v -> printf "%s %s\r\n" s v
                 | Error msg -> printf "%s" msg
         | Error msg -> failwith msg
-
+    member x.forVersion filter func = 
+        match x.subjects() with
+        | Success subjects ->
+            for s in subjects |> Array.filter filter do
+                match x.subjectVersions(s) with
+                | Success v -> func x s v
+                | Error msg -> failwith msg
+        | Error msg -> failwith msg
 
 let r = new SchemaRegistry("http://localhost:8081")
+
+let filt (s:string) = not (s.StartsWith("logs") || s.StartsWith("coyote"))
+
+
+let writeSchema (registry:SchemaRegistry) subject versions =
+    for v in  versions |> splitIntArray do
+        match registry.schema(subject, v) with
+        | Success wrappedSchema -> 
+            let schemaStart = wrappedSchema.IndexOf("schema\":\"") + 9
+            let schema = wrappedSchema.Substring(schemaStart, wrappedSchema.Length - schemaStart - 2)
+            let targetDir = sprintf "C:\\proj\\test\\%s" subject
+            let fileTarget = sprintf "%s\\%s.v%04i.avsc" targetDir subject v
+            Directory.CreateDirectory(targetDir) |> ignore
+            let jt = JToken.Parse(schema)
+            File.WriteAllText(fileTarget, jt.ToString())
+        | Error msg -> failwith msg
+
+r.forVersion filt writeSchema
+
+printf "%05i\r\n" 3
 
 r.subjects()
 r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
