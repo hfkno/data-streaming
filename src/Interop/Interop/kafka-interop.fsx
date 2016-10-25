@@ -174,31 +174,11 @@ k.deleteConsumer(consumerName)
 (* Schema manipulation  *)
 type SchemaRegistry(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
-
+    
     let extractSchema (json:string) =
         let schemaStart = json.IndexOf("schema\":\"") + 9
         let schema = json.Substring(schemaStart, json.Length - schemaStart - 2)
         JToken.Parse(schema).ToString()
-
-    member x.subjects() = "subjects" |> x.getUrl |> splitJsonArray
-    
-    member x.subjectVersions(subject:string) = 
-        let getVersions = sprintf "subjects/%s/versions" subject |> x.getUrl
-        match getVersions with
-        | Success versionArray -> versionArray |> splitIntArray
-        | Error msg -> failwith msg
-
-    member x.schema(subject:string, version:int) = 
-        let getSchema = sprintf "subjects/%s/versions/%i" subject version |> x.getUrl
-        match getSchema with
-        | Success json -> json |> extractSchema
-        | Error msg -> failwith msg
-
-    member x.schema(schemaId:int) = 
-        let getSchema = sprintf "schemas/ids/%i" schemaId |> x.getUrl
-        match getSchema with
-        | Success json -> json |> extractSchema
-        | Error msg -> failwith msg
 
     member x.registerSchema(subject, schema) = 
         x.request
@@ -207,15 +187,50 @@ type SchemaRegistry(rootUrl) =
             httpMethod = "POST",
             body = TextRequest schema)
 
+    member x.schema(subject:string) =  x.latestSchema(subject)
+
+    member x.schema(schemaId:int) = 
+        let getSchema = sprintf "schemas/ids/%i" schemaId |> x.getUrl
+        match getSchema with
+        | Success json -> json |> extractSchema
+        | Error msg -> failwith msg
+
+    member x.schema(subject:string, version:int) = 
+        let getSchema = sprintf "subjects/%s/versions/%i" subject version |> x.getUrl
+        match getSchema with
+        | Success json -> json |> extractSchema
+        | Error msg -> failwith msg
+
+    member x.subjects() = "subjects" |> x.getUrl |> splitJsonArray
+
     member x.subjectStatus(subject:string) =
         sprintf "subjects/%s/versions/latest" subject |> x.getUrl
+        
+    member x.subjectVersions(subject:string) = 
+        let getVersions = sprintf "subjects/%s/versions" subject |> x.getUrl
+        match getVersions with
+        | Success versionArray -> versionArray |> splitIntArray
+        | Error msg -> failwith msg
             
     member x.latestSchema(subject:string) = 
         match x.subjectStatus(subject) with
         | Success json -> json |> extractSchema
         | Error msg -> failwith msg
 
-    member x.latestSchemaVersion(subject:string) = x.subjectVersions(subject).Last()
+    member private x.latest (subject:string) = 
+        match x.subjectStatus(subject) with
+        | Success rawJson -> 
+            let schemaInfoEnd = rawJson.IndexOf(",\"schema\":\"")
+            let json = rawJson.Substring(0, schemaInfoEnd) + "}"
+            let info = JObject.Parse(json)
+            let id = Int32.Parse(info.["id"].ToString())
+            let version = (Int32.Parse(info.["version"].ToString()))
+            id, version
+        | Error msg -> failwith msg
+
+    member x.latestSchemaVersion(subject:string) = x.latest(subject) |> snd
+
+    member x.latestSchemaId(subject:string) = x.latest(subject) |> fst
 
     member x.listVersions() =
         match x.subjects() with
@@ -224,16 +239,7 @@ type SchemaRegistry(rootUrl) =
                 let v = x.subjectVersions(s)
                 printf "%s %A\r\n" s v
         | Error msg -> failwith msg
-
-    member x.currentSchemaId(subject:string) =
-        match x.subjectStatus(subject) with
-        | Success json -> 
-            let jo = JsonConvert.DeserializeObject(json)
-            printf "%O" jo
-            123
-        | Error msg -> failwith msg
-
-
+        
     // TODO: move the following logic out to a "Repository" for cleanliness...
 
 
@@ -284,47 +290,20 @@ type SchemaRegistry(rootUrl) =
 
 let r = new SchemaRegistry("http://localhost:8081")
 
+r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
+r.subjects()
 r.subjectVersions("activedirectoryuser-value")
-r.latestSchemaVersion("activedirectoryuser-value")
-r.currentSchemaId("ad_user-value")
+r.latestSchemaVersion("ad_user-value")
+r.latestSchemaId("ad_user-value")
 r.schema(17)
-
-let subject = "ad_user-value"
-r.latestSchema(subject)
-
-match r.subjectStatus(subject) with
-| Success json -> 
-    let schemaInfoEnd = json.IndexOf(",\"schema\":\"")
-    let schema = json.Substring(0, schemaInfoEnd) + "}"
-    let wrappedSchema = JToken.Parse(schema).ToString(Formatting.None)
-    let escapedSchema = JsonConvert.ToString(wrappedSchema)
-    
-    printf "%s" (wrappedSchema.ToString())
-    //let token = JToken.Parse(json)
-    //printf "%O" token
-//    let jo = JsonConvert.DeserializeObject(json)
-//    printf "%O" jo
-    123
-| Error msg -> failwith msg
-
-
+r.schema("ad_user-value")
+r.schema("randotesto3-value", 1)
 r.latestSchema("ad_user-value")
-//r.schema()
+r.listVersions()
 
 
 r.loadSchemas("C:\\proj\\poc\\models")
 
 r.writeSchemas("C:\\proj\\test")
-
-r.subjects()
-
-r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
-r.subjectVersions("randotesto3-value")
-r.subjectVersions("ad_user-value")
-r.schema("randotesto3-value", 1)
-r.latestSchema("randotesto3-value")
-r.latestSchemaVersion("randotesto3-value")
-r.listVersions()
-
 
 // TODO: Upgrade to a new schema with a breaking change...
