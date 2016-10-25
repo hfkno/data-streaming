@@ -15,7 +15,9 @@
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 open FSharp.Data
+open Newtonsoft.Json
 open Newtonsoft.Json.Linq
+open System
 open System.IO
 open System.Linq
 
@@ -47,7 +49,9 @@ let splitIntArray (input:string) =
 
 
 type ConfluenceAdapter(rootUrl) =
+
     member x.url ending = rootUrl + "/" + ending
+
     member x.request(url, ?headers, ?httpMethod, ?body) : Result<string,string> =
         try
             Http.RequestString(url, ?httpMethod = httpMethod, ?headers = headers, ?body = body)
@@ -55,7 +59,9 @@ type ConfluenceAdapter(rootUrl) =
             |> Success
         with
             | :? System.Net.WebException as ex -> Error ex.Message
+
     member x.getUrl = x.url >> x.request
+
     member x.query(path)  = x.request (x.url path)
 
 
@@ -63,26 +69,35 @@ type ConfluenceAdapter(rootUrl) =
 (* Message topic creation *)
 type Kafka(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
+
     member x.listTopics()  = "topics" |> x.getUrl
+
     member x.topics() = x.listTopics() |> splitJsonArray
+
     member x.topicMetadata(topic:string) = sprintf "topics/%s" topic |> x.getUrl
+
     member x.topicPartitionMetadata(topic:string) = sprintf "topics/%s/partitions" topic |> x.getUrl
+
     member x.schemaPolicy() = "topics/_schemas" |> x.getUrl
+
     member x.produceMessage(topic, msg) =
         x.request
           ( x.url "topics/" + topic,
             headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ],
             body = TextRequest msg )
+
     // TODO: Sanitize consumer 'name' input for consumer URL creation
     member x.createConsumer(consumerName:string) =
          x.request
           ( x.url (sprintf "consumers/my_avro_consumer"),
             headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ],
             body = TextRequest (sprintf """{"name": "%s", "format": "avro", "auto.offset.reset": "smallest"}""" consumerName))
+
     member x.deleteConsumer(consumerName:string) =
          x.request
           ( x.url (sprintf "consumers/my_avro_consumer/instances/%s" consumerName),
             httpMethod = "DELETE")
+
     member x.consume(consumerName:string, topic:string) =
         x.request
          ( x.url (sprintf "consumers/my_avro_consumer/instances/%s/topics/%s" consumerName topic),
@@ -103,18 +118,14 @@ k.topicPartitionMetadata("basictest2")
 let valueSchema = """{ \"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"""
 let records = """{"value": {"name": "testUser", "nameo": "hi"}}"""
 let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
-
 let valueSchemaId = 1
 let dataId = sprintf """{"value_schema_id": "%i", "records": [%s]}""" valueSchemaId records
-
 let topic = "testing_6"
 
 // Post a message with rolling data
 for i in 81 .. 89 do
     let postData = data.Replace("testUser", sprintf "testUser%i" i)
     k.produceMessage(topic, postData) |> ignore
-
-
 
 // Post a message with rolling data - known schema
 for i in 91 .. 99 do
@@ -139,22 +150,30 @@ k.deleteConsumer(consumerName)
 (* Schema manipulation  *)
 type SchemaRegistry(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
+
     member x.subjects() = x.request (x.url "subjects") |> splitJsonArray
+
     member x.subjectVersions(subject:string) = sprintf "subjects/%s/versions" subject |> x.getUrl
+
     member x.schema(subject:string, id:int) = sprintf "subjects/%s/versions/%i" subject id |> x.getUrl
+
     member x.schemaById(id:int) = sprintf "schemas/ids/%i" id |> x.getUrl
+
     member x.latestSchema(subject:string) = sprintf "subjects/%s/versions/latest" subject |> x.getUrl    
+
     member x.registerSchema(subject, schema) = 
         x.request
           ( x.url (sprintf "subjects/%s/versions" subject),
             headers = [ "Content-Type", "application/vnd.schemaregistry.v1+json" ],
             httpMethod = "POST",
             body = TextRequest schema)
+
     member x.latestSchemaVersion(subject:string) =
         match x.subjectVersions(subject) with
         | Success versionArr -> 
             (versionArr |> splitIntArray).Last()
         | Error msg -> failwith msg
+
     member x.listVersions() =
         match x.subjects() with
         | Success subjects ->
@@ -163,7 +182,8 @@ type SchemaRegistry(rootUrl) =
                 | Success v -> printf "%s %s\r\n" s v
                 | Error msg -> printf "%s" msg
         | Error msg -> failwith msg
-    member x.forVersion filter func = 
+
+    member x.forEachVersion filter func = 
         match x.subjects() with
         | Success subjects ->
             for s in subjects |> Array.filter filter do
@@ -172,27 +192,53 @@ type SchemaRegistry(rootUrl) =
                 | Error msg -> failwith msg
         | Error msg -> failwith msg
 
+    member x.writeSchemas toFolder = 
+
+        let topicFilter (s:string) = not (s.StartsWith("logs") || s.StartsWith("coyote"))
+
+        let writeSchema (registry:SchemaRegistry) subject versions =
+            for v in  versions |> splitIntArray do
+                match registry.schema(subject, v) with
+                | Success wrappedSchema -> 
+                    let schemaStart = wrappedSchema.IndexOf("schema\":\"") + 9
+                    let schema = wrappedSchema.Substring(schemaStart, wrappedSchema.Length - schemaStart - 2)
+                    let targetDir = sprintf "%s\\%s" toFolder subject
+                    let fileTarget = sprintf "%s\\%s.v%04i.avsc" targetDir subject v
+                    Directory.CreateDirectory(targetDir) |> ignore
+                    let jt = JToken.Parse(schema)
+                    File.WriteAllText(fileTarget, jt.ToString())
+                | Error msg -> failwith msg
+
+        x.forEachVersion topicFilter writeSchema
+
+    member x.loadSchemas fromFolder =
+        
+        let schemata = Directory.GetFiles(fromFolder, "*.avsc", SearchOption.AllDirectories)
+
+        let subjectFromFile fileName = 
+            let name = Path.GetFileNameWithoutExtension(fileName)
+            let split = name.IndexOf(".v")
+            let subject = name.Substring(0, split)
+            let version = Int32.Parse(name.Substring(split + 2))
+            subject, version
+
+        for schemaFile in schemata do
+            let subject, version = subjectFromFile schemaFile
+            let schema = JsonConvert.ToString(File.ReadAllText(schemaFile))
+            match x.registerSchema(subject, schema) with
+            | Success s -> ignore
+            | Error msg -> failwith msg
+            |> ignore
+
+
+
+
+let rrr = """{  "type": "record",  "name": "User82",  "fields": [    {      "name": "name",      "type": "string"    }  ]}"""
+let s = JsonConvert.ToString(rrr)
+
 let r = new SchemaRegistry("http://localhost:8081")
 
-let filt (s:string) = not (s.StartsWith("logs") || s.StartsWith("coyote"))
-
-
-let writeSchema (registry:SchemaRegistry) subject versions =
-    for v in  versions |> splitIntArray do
-        match registry.schema(subject, v) with
-        | Success wrappedSchema -> 
-            let schemaStart = wrappedSchema.IndexOf("schema\":\"") + 9
-            let schema = wrappedSchema.Substring(schemaStart, wrappedSchema.Length - schemaStart - 2)
-            let targetDir = sprintf "C:\\proj\\test\\%s" subject
-            let fileTarget = sprintf "%s\\%s.v%04i.avsc" targetDir subject v
-            Directory.CreateDirectory(targetDir) |> ignore
-            let jt = JToken.Parse(schema)
-            File.WriteAllText(fileTarget, jt.ToString())
-        | Error msg -> failwith msg
-
-r.forVersion filt writeSchema
-
-printf "%05i\r\n" 3
+r.writeSchemas("C:\\proj\\test")
 
 r.subjects()
 r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
