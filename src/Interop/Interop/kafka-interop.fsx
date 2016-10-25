@@ -105,6 +105,17 @@ type Kafka(rootUrl) =
            headers = [ "Accept", "application/vnd.kafka.avro.v1+json" ])
 
 
+
+
+
+// Here is where the work starts
+
+// 1) Have this serializer available in main project (done)
+
+// 2) Call this serializer from the main project to add a unit
+
+// 3) Hard code the schema versions FTM, submit the saved info into the streaming framework in parallell with the fake AD solution
+
 type User = 
     {
         Id : int
@@ -125,6 +136,15 @@ let toJson o =
 atest |> toJson
 
 JsonConvert.SerializeObject(atest)
+
+
+
+
+
+
+
+
+
 
 
 let k = new Kafka("http://localhost:8082")
@@ -243,7 +263,7 @@ type SchemaRegistry(rootUrl) =
     // TODO: move the following logic out to a "Repository" for cleanliness...
 
 
-    member x.forEachVersion filter func = 
+    member private x.forEachVersion filter func = 
         match x.subjects() with
         | Success subjects ->
             for s in subjects |> Array.filter filter do
