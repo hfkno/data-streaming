@@ -239,7 +239,7 @@ type SchemaRegistry(rootUrl) =
 (* Schema Registry persistence *)
 module SchemaPersistence =
 
-    let forEachVersion filter func (registry:SchemaRegistry) = 
+    let private forEachVersion filter func (registry:SchemaRegistry) = 
         match registry.subjects() with
         | Success subjects ->
             for s in subjects |> Array.filter filter do
@@ -298,9 +298,8 @@ r.latestSchema("ad_user-value")
 r.listVersions()
 
 
-r.loadSchemas("C:\\proj\\poc\\models")
-
-r.writeSchemas("C:\\proj\\test")
+r |> SchemaPersistence.loadSchemas  "C:\\proj\\poc\\models"
+r |> SchemaPersistence.writeSchemas "C:\\proj\\test"
 
 // TODO: Upgrade to a new schema with a breaking change...
 
@@ -315,8 +314,5 @@ type User =
     }
 
 let atest = { Id = 0; Name = "Amber Allad"; Title="Junior Janitor"; Email = "aa@hfk.no"; Department = "Sanitation"; }
-
-//{"value_schema_id": "3", "records": [{"value": {"id":18,"name":"Rawr","title":"Test","email":"","department":""}}]}
-
 let schemaId = r.latestSchemaId("ad_user-value")
 k.produceVersionedMessage("ad_user-value", schemaId, atest)
