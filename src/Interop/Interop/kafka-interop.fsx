@@ -46,6 +46,11 @@ let splitJsonArray (input:Result<string,string>) =
 let splitIntArray (input:string) =
     input.Replace("[", "").Replace("]", "").Split(',') 
     |> Array.map (fun n -> System.Int32.Parse(n))
+let toJson o =
+    JsonConvert.SerializeObject(o, 
+        new JsonSerializerSettings(ContractResolver = new Serialization.CamelCasePropertyNamesContractResolver())
+    )
+let encode = toJson
 
 
 type ConfluenceAdapter(rootUrl) =
@@ -104,6 +109,10 @@ type Kafka(rootUrl) =
            httpMethod = "GET",
            headers = [ "Accept", "application/vnd.kafka.avro.v1+json" ])
 
+    member x.produceVersionedMessage(topic, schemaId, (message:'a)) =
+        let messageJson = message |> toJson
+        let versionedMessage = sprintf """{"value_schema_id": "%i", "records": [%s]}""" schemaId messageJson
+        x.produceMessage(topic, versionedMessage)
 
 
 
@@ -115,36 +124,6 @@ type Kafka(rootUrl) =
 // 2) Call this serializer from the main project to add a unit
 
 // 3) Hard code the schema versions FTM, submit the saved info into the streaming framework in parallell with the fake AD solution
-
-type User = 
-    {
-        Id : int
-        Name : string
-        Title : string
-        Email : string
-        Department : string
-        CamelCase : string
-    }
-
-let atest = { Id = 0; Name = "Amber Allad"; Title="Junior Janitor"; Email = "aa@hfk.no"; Department = "Sanitation"; CamelCase = "here"  }
-
-
-let toJson o =
-    JsonConvert.SerializeObject(o, new JsonSerializerSettings(ContractResolver = new Serialization.CamelCasePropertyNamesContractResolver()))
-
-
-let encode = toJson
-
-atest |> toJson
-
-JsonConvert.SerializeObject(atest)
-
-
-
-
-
-
-
 
 
 
