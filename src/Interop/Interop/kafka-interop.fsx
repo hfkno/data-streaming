@@ -111,30 +111,17 @@ type Kafka(rootUrl) =
 
     member x.produceVersionedMessage(topic, schemaId, (message:'a)) =
         let messageJson = message |> toJson
-        let versionedMessage = sprintf """{"value_schema_id": "%i", "records": [%s]}""" schemaId messageJson
+        let versionedMessage = sprintf """{"value_schema_id": "%i", "records": [{"value": %s}]}""" schemaId messageJson
+        printf "publishing: %s\r\n" versionedMessage
         x.produceMessage(topic, versionedMessage)
 
-
-
-
-// Here is where the work starts
-
-// 1) Have this serializer available in main project (done)
-
-// 2) Call this serializer from the main project to add a unit
-
-// 3) Hard code the schema versions FTM, submit the saved info into the streaming framework in parallell with the fake AD solution
-
-
-
-
+        
 let k = new Kafka("http://localhost:8082")
 k.listTopics()
 k.schemaPolicy()
 k.topics()
 k.topicMetadata("basictest2")
 k.topicPartitionMetadata("basictest2")
-
 
 // produding a message with Avro metadata embedded
 let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ]}"""
@@ -161,12 +148,13 @@ let consumerName = "ze_test_consumer"
 k.createConsumer(consumerName)
 
 // Read updated rolling data
-match k.consume(consumerName, "testing_1") with
+match k.consume(consumerName, "ad_user") with
 | Success str -> printf "%s" str |> ignore
 | Error msg -> printf "%s" msg |> ignore
 
 // Cleanup
 k.deleteConsumer(consumerName)
+
 
 
 
@@ -181,26 +169,28 @@ type SchemaRegistry(rootUrl) =
         let schema = json.Substring(schemaStart, json.Length - schemaStart - 2)
         JToken.Parse(schema).ToString()
 
+    let identity (rawSchemaResult:Result<string,string>) = 
+        match rawSchemaResult with
+        | Success rawJson -> 
+            let schemaInfoEnd = rawJson.IndexOf(",\"schema\":\"")
+            let json = rawJson.Substring(0, schemaInfoEnd) + "}"
+            let info = JObject.Parse(json)
+            let id = Int32.Parse(info.["id"].ToString())
+            let version = (Int32.Parse(info.["version"].ToString()))
+            id, version
+        | Error msg -> failwith msg
+
+    let justSchema = function
+        | Success json -> json |> extractSchema
+        | Error msg -> failwith msg
+        
+
     member x.registerSchema(subject, schema) = 
         x.request
           ( x.url (sprintf "subjects/%s/versions" subject),
             headers = [ "Content-Type", "application/vnd.schemaregistry.v1+json" ],
             httpMethod = "POST",
             body = TextRequest schema)
-
-    member x.schema(subject:string) =  x.latestSchema(subject)
-
-    member x.schema(schemaId:int) = 
-        let getSchema = sprintf "schemas/ids/%i" schemaId |> x.getUrl
-        match getSchema with
-        | Success json -> json |> extractSchema
-        | Error msg -> failwith msg
-
-    member x.schema(subject:string, version:int) = 
-        let getSchema = sprintf "subjects/%s/versions/%i" subject version |> x.getUrl
-        match getSchema with
-        | Success json -> json |> extractSchema
-        | Error msg -> failwith msg
 
     member x.subjects() = "subjects" |> x.getUrl |> splitJsonArray
 
@@ -213,25 +203,28 @@ type SchemaRegistry(rootUrl) =
         | Success versionArray -> versionArray |> splitIntArray
         | Error msg -> failwith msg
             
+    member x.rawSchema(subject:string, version:int) = 
+        sprintf "subjects/%s/versions/%i" subject version |> x.getUrl
+
     member x.latestSchema(subject:string) = 
-        match x.subjectStatus(subject) with
-        | Success json -> json |> extractSchema
-        | Error msg -> failwith msg
+        x.subjectStatus(subject) |> justSchema
+                
+    member x.schema(subject:string) = 
+        x.latestSchema(subject)
 
-    member private x.latest (subject:string) = 
-        match x.subjectStatus(subject) with
-        | Success rawJson -> 
-            let schemaInfoEnd = rawJson.IndexOf(",\"schema\":\"")
-            let json = rawJson.Substring(0, schemaInfoEnd) + "}"
-            let info = JObject.Parse(json)
-            let id = Int32.Parse(info.["id"].ToString())
-            let version = (Int32.Parse(info.["version"].ToString()))
-            id, version
-        | Error msg -> failwith msg
+    member x.schema(schemaId:int) = 
+        sprintf "schemas/ids/%i" schemaId |> x.getUrl |> justSchema
+    
+    member x.schema(subject:string, version:int) = 
+        x.rawSchema(subject, version) |> justSchema
+        
+    member private x.latest (subject:string) = x.subjectStatus(subject)
 
-    member x.latestSchemaVersion(subject:string) = x.latest(subject) |> snd
+    member x.latestSchemaVersion(subject:string) = x.latest(subject) |> identity |> snd
 
-    member x.latestSchemaId(subject:string) = x.latest(subject) |> fst
+    member x.latestSchemaId(subject:string) = x.latest(subject) |> identity |> fst
+    
+    member x.schemaId(subject:string, version:int) = x.rawSchema(subject, version) |> identity |> fst
 
     member x.listVersions() =
         match x.subjects() with
@@ -240,19 +233,21 @@ type SchemaRegistry(rootUrl) =
                 let v = x.subjectVersions(s)
                 printf "%s %A\r\n" s v
         | Error msg -> failwith msg
-        
-    // TODO: move the following logic out to a "Repository" for cleanliness...
 
 
-    member private x.forEachVersion filter func = 
-        match x.subjects() with
+
+(* Schema Registry persistence *)
+module SchemaPersistence =
+
+    let forEachVersion filter func (registry:SchemaRegistry) = 
+        match registry.subjects() with
         | Success subjects ->
             for s in subjects |> Array.filter filter do
-                let v = x.subjectVersions(s)
-                func x s v
+                let v = registry.subjectVersions(s)
+                func registry s v
         | Error msg -> failwith msg
 
-    member x.writeSchemas toFolder = 
+    let writeSchemas toFolder (registry:SchemaRegistry) = 
 
         let topicFilter (s:string) = not (s.StartsWith("logs") || s.StartsWith("coyote"))
 
@@ -264,9 +259,9 @@ type SchemaRegistry(rootUrl) =
                 Directory.CreateDirectory(targetDir) |> ignore
                 File.WriteAllText(fileTarget, schema)
 
-        x.forEachVersion topicFilter writeSchema
+        registry |> forEachVersion topicFilter writeSchema
 
-    member x.loadSchemas fromFolder =
+    let loadSchemas fromFolder (registry:SchemaRegistry) =
         
         let schemata = Directory.GetFiles(fromFolder, "*.avsc", SearchOption.AllDirectories)
 
@@ -282,7 +277,7 @@ type SchemaRegistry(rootUrl) =
             let schemaContent = JObject.Parse(File.ReadAllText(schemaFile)).ToString(Formatting.None)
             let schema = sprintf """{"schema": %s}""" (JsonConvert.ToString(schemaContent))
             printfn "registering: %s %s" subject schema
-            match x.registerSchema(subject, schema) with
+            match registry.registerSchema(subject, schema) with
             | Success s -> ignore
             | Error msg -> failwith msg
             |> ignore
@@ -308,3 +303,20 @@ r.loadSchemas("C:\\proj\\poc\\models")
 r.writeSchemas("C:\\proj\\test")
 
 // TODO: Upgrade to a new schema with a breaking change...
+
+
+type User = 
+    {
+        Id : int
+        Name : string
+        Title : string
+        Email : string
+        Department : string
+    }
+
+let atest = { Id = 0; Name = "Amber Allad"; Title="Junior Janitor"; Email = "aa@hfk.no"; Department = "Sanitation"; }
+
+//{"value_schema_id": "3", "records": [{"value": {"id":18,"name":"Rawr","title":"Test","email":"","department":""}}]}
+
+let schemaId = r.latestSchemaId("ad_user-value")
+k.produceVersionedMessage("ad_user-value", schemaId, atest)
