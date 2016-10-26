@@ -87,8 +87,11 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Overall_Plan.md" />
+    <None Include="EIP.md" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="kafka-interop.fsx" />
+    <None Include="eip.fsx" />
+    <None Include="akka_injestor.fsx" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

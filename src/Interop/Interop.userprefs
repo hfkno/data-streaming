@@ -1,9 +1,14 @@
-﻿<Properties StartupItem="Interop/Interop.fsproj">
-  <MonoDevelop.Ide.ItemProperties.Interop PreferredExecutionTarget="MonoDevelop.Default" />
-  <MonoDevelop.Ide.Workbench ActiveDocument="Interop/akka_basics.fsx">
+﻿<Properties>
+  <MonoDevelop.Ide.Workbench ActiveDocument="Interop/EIP.fsx">
     <Files>
-      <File FileName="Interop/kafka-interop.fsx" Line="15" Column="1" />
-      <File FileName="Interop/akka_basics.fsx" Line="320" Column="1" />
+      <File FileName="Interop/kafka-interop.fsx" Line="23" Column="26" />
+      <File FileName="Interop/akka_basics.fsx" Line="23" Column="17" />
+      <File FileName="Interop/bootcamp_ch_1.fsx" Line="93" Column="1" />
+      <File FileName="Interop/swagger.fsx" Line="2" Column="1" />
+      <File FileName="Interop/Overall_Plan.md" Line="28" Column="35" />
+      <File FileName="Interop/EIP.md" Line="132" Column="2" />
+      <File FileName="Interop/EIP.fsx" Line="23" Column="1" />
+      <File FileName="Interop/akka_injestor.fsx" Line="1" Column="1" />
     </Files>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
