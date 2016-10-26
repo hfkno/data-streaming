@@ -133,6 +133,8 @@ let toJson o =
     JsonConvert.SerializeObject(o, new JsonSerializerSettings(ContractResolver = new Serialization.CamelCasePropertyNamesContractResolver()))
 
 
+let encode = toJson
+
 atest |> toJson
 
 JsonConvert.SerializeObject(atest)
