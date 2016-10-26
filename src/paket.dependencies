@@ -4,6 +4,7 @@ nuget Akka.DI.Autofac
 nuget Akka.FSharp
 nuget Akka.Serialization.Wire
 nuget Akka.TestKit.NUnit3
+nuget FSharp.Data
 nuget FsPickler
 nuget FsPowerPack.Community
 nuget FsPowerPack.Core.Community
