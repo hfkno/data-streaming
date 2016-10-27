@@ -10,6 +10,14 @@
 
     REST API documentation @ http://docs.confluent.io/3.0.0/kafka-rest/docs/intro.html
 
+
+    Docker startup:
+
+    PS P:\> docker run --rm -it `
+             -p 2181:2181 -p 3030:3030 -p 8081:8081 `
+             -p 8082:8082 -p 8083:8083 -p 9092:9092 `
+             landoop/fast-data-dev
+
 *)
 
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
