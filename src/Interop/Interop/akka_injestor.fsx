@@ -22,21 +22,24 @@ open Akka.Actor
 open Akka.Configuration
 open Akka.FSharp
 
+
 let handleContent content =
-    printf "handling!\r\n"
-    printf "whaaaaaa %s" content
+    printf "handled content: %s\r\n" content
 
 
 let readFile (mailbox:Actor<System.Uri>) (file:System.Uri) =
+    System.Threading.Tasks.Task.Delay(3000) |> ignore
     printf "readingFile!\r\n"
     // stream the file contents to the actor framework...
-    let content = File.ReadAllLines(file.LocalPath)
+    let content = [] // File.ReadAllLines(file.LocalPath)
+    printf "finished reading file!\r\n"
 
-    let handler =  spawn mailbox "console-writer" <| actorOf handleContent
+    let handler = spawn mailbox "file-handler" <| actorOf handleContent
 
     for line in content do
         handler <! line
 
+    printf "Done sending content to the file-handler\r\n"
     //spawn mailbox ("observer-" + Uri.EscapeDataString(filePath)) (observer filePath writer) |> ignore)
 
 
@@ -67,6 +70,7 @@ let observer filePath consoleWriter (mailbox:Actor<_>) =
         |> Observable.subscribe(fun (changeType, fileName) -> 
                 
                 // Send file to parser
+                System.Threading.Tasks.Task.Delay(3000) |> ignore
                 fileHandler <! new System.Uri(fileName)
                 consoleWriter <! fileName
             )
@@ -87,10 +91,7 @@ let observer filePath consoleWriter (mailbox:Actor<_>) =
 // Create parser that loads and then delegates uploading line-by-line
 
 let system = ActorSystem.Create("observer-system")
-
-// create actor responsible for printing messages
-let writer = spawn system "console-writer" <| actorOf (printfn "%A")
-
+let writer = spawn system "console-writer" <| actorOf (printfn "--%A")
 // create manager responsible for serving listeners for provided paths
 let manager = spawn system "manager" <| actorOf2 (fun mailbox filePath ->
     spawn mailbox ("observer-" + Uri.EscapeDataString(filePath)) (observer filePath writer) |> ignore)
