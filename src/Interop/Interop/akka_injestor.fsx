@@ -25,11 +25,7 @@ open Akka.FSharp
 open FSharp.Data
 
 
-type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv">
-//  Example of hard/coding the schema with types of measure...
-//   CsvProvider<"1,2,3", HasHeaders = false, 
-//    Schema = "Duration (float<second>),foo,float option">
-
+type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv"> // CSV schemas can be hard coded into scripts
 
 type SupplierDetails = 
     { 
@@ -42,7 +38,9 @@ type SupplierDetails =
 module Amesto =
     module WebService =
         let publish(details:SupplierDetails) = 
-            printf "Webservice got %A" details
+            printf "Publishing\r\n"
+            printf "%s" "rawr"
+            printf "Webservice got %A\r\n" details
              // recieved supplier #%i: %s (%s, %s)" 
                //     details.Id details.Name details.ContactName details.ContactTitle
 
@@ -50,14 +48,13 @@ let handleContent content =
     Amesto.WebService.publish content
 
 
-
 let reader (mailbox:Actor<System.Uri>) =
 
     let handler = spawn mailbox "handler" <| actorOf handleContent
 
     let rec loop() = actor {
-        let! message = mailbox.Receive()
-        let suppliers = ``Visma Leverandør Data``.Load("data\suppliers.csv")
+        let! uri = mailbox.Receive()
+        let suppliers = ``Visma Leverandør Data``.Load(uri.LocalPath)
         for supplier in suppliers.Rows do
             handler <! 
                 { Id = supplier.SupplierID 
@@ -68,8 +65,6 @@ let reader (mailbox:Actor<System.Uri>) =
     }
     loop()
 
-
-
 let fileWatcher (scheduler:ITellScheduler) filePath (mailbox:Actor<_>) =    
     let fsw = new FileSystemWatcher(
                         Path = filePath, 
@@ -77,21 +72,20 @@ let fileWatcher (scheduler:ITellScheduler) filePath (mailbox:Actor<_>) =
                         EnableRaisingEvents = true, 
                         NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
                         )
-    
-    let reader = spawn mailbox "reader" reader
 
-    let publish uri =
-                // FileSystemWatcher alerts of file creation while files are still locked
-                let readDelay = new TimeSpan(0,0,0,0,500)
-                scheduler.ScheduleTellOnce(readDelay, reader, uri)
+    let reader = spawn mailbox "reader" reader
+    let fileCreated uri =
+        // FileSystemWatcher alerts of file creation while files are still locked
+        let readDelay = new TimeSpan(0,0,0,0,300)
+        scheduler.ScheduleTellOnce(readDelay, reader, uri)
     
     // subscribe to incoming file system events - send them to consoleWriter
     let subscription = 
         fsw.Created 
         |> Observable.map (fun file -> new System.Uri(file.FullPath))
         |> Observable.filter (fun uri -> uri.LocalPath.EndsWith(".csv"))
-        |> Observable.subscribe publish
-
+        |> Observable.subscribe fileCreated
+        
     mailbox.Defer <| fun () -> 
         subscription.Dispose()
         fsw.Dispose()
