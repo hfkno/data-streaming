@@ -46,7 +46,17 @@
 
 
 
-### BizTalk
+
+#### Design
+
+	o Primary portal enabled with lighthouse and swagger
+	o declarative overview of services
+	o Links to sub-swagger instances and swagger.json files from "owned" services
+	o Links to generated swagger files for third party services
+
+
+
+### BizTalk 
 
 
   o Basic education
