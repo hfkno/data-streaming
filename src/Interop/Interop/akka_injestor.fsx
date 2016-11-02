@@ -2,7 +2,7 @@
 
 (*
 
-    Akka.Net Fundamentals
+    Basic Akka.Net file reader -> webservice agency
 
 *)
 
@@ -22,34 +22,24 @@ open Akka.Actor
 open Akka.Configuration
 open Akka.FSharp
 
-
-
-let system = ActorSystem.Create("observer-system")
-    
-//
-//
-
 let handleContent content =
-    printf "%s" content
+    printf "handling!\r\n"
+    printf "whaaaaaa %s" content
 
 
 let readFile (mailbox:Actor<System.Uri>) (file:System.Uri) =
-    
+    printf "readingFile!\r\n"
     // stream the file contents to the actor framework...
     let content = File.ReadAllLines(file.LocalPath)
 
-    let handler =  spawn system "console-writer" <| actorOf handleContent
+    let handler =  spawn mailbox "console-writer" <| actorOf handleContent
 
     for line in content do
         handler <! line
 
     //spawn mailbox ("observer-" + Uri.EscapeDataString(filePath)) (observer filePath writer) |> ignore)
 
-let fileHandler = spawn system "reader" <| actorOf2 readFile
 
-
-
-//
 //let leverandørFilLeser (mailbox:Actor<System.Uri>) =
 //    let rec readFileLoop() = actor {
 //        let! msg = mailbox.Receive()
@@ -57,8 +47,6 @@ let fileHandler = spawn system "reader" <| actorOf2 readFile
 //        return! readFileLoop()
 //    }
 //    readFileLoop()
-//
-
 
 let observer filePath consoleWriter (mailbox:Actor<_>) =    
     let fsw = new FileSystemWatcher(
@@ -67,17 +55,20 @@ let observer filePath consoleWriter (mailbox:Actor<_>) =
                         EnableRaisingEvents = true, 
                         NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
                         )
-
+    
+    let fileHandler = spawn mailbox "reader" <| actorOf2 readFile
+    
     // subscribe to incoming file system events - send them to consoleWriter
     let subscription = 
-//        [fsw.Created |> Observable.map(fun x -> x.ChangeType.ToString(), x.Name);]
-//        |> List.reduce Observable.merge
-        fsw.Created |> Observable.map(fun x -> x.ChangeType.ToString(), x.Name)
-        |> Observable.filter(fun (changeType, name) -> name.EndsWith(".lsi"))
-        |> Observable.subscribe(fun x -> 
+        [fsw.Created |> Observable.map(fun x -> x.ChangeType.ToString(), x.FullPath);]
+        |> List.reduce Observable.merge
+        //fsw.Created |> Observable.map(fun x -> x.ChangeType.ToString(), x.Name)
+        |> Observable.filter(fun (changeType, fileName) -> fileName.EndsWith(".lsi"))
+        |> Observable.subscribe(fun (changeType, fileName) -> 
                 
                 // Send file to parser
-                consoleWriter <! x
+                fileHandler <! new System.Uri(fileName)
+                consoleWriter <! fileName
             )
 
     // Freeing resources when terminating
@@ -95,9 +86,7 @@ let observer filePath consoleWriter (mailbox:Actor<_>) =
 
 // Create parser that loads and then delegates uploading line-by-line
 
-
-
-
+let system = ActorSystem.Create("observer-system")
 
 // create actor responsible for printing messages
 let writer = spawn system "console-writer" <| actorOf (printfn "%A")
@@ -108,6 +97,7 @@ let manager = spawn system "manager" <| actorOf2 (fun mailbox filePath ->
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
+system.Terminate()
 
 
 
