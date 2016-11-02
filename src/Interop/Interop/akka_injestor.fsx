@@ -14,6 +14,7 @@
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 #r "../../packages/FSPowerPack.Core.Community/Lib/net40/FSharp.PowerPack.dll"
+#r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 
 open System
 open System.IO
@@ -21,27 +22,55 @@ open Akka
 open Akka.Actor
 open Akka.Configuration
 open Akka.FSharp
+open FSharp.Data
 
 
-let handleContent content =
-    printf "handled content: %s\r\n" content
+type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv">
+//  Example of hard/coding the schema with types of measure...
+//   CsvProvider<"1,2,3", HasHeaders = false, 
+//    Schema = "Duration (float<second>),foo,float option">
 
 
-let readFile (mailbox:Actor<System.Uri>) =
+type SupplierDetails = 
+    { 
+        Id : int
+        Name : string
+        ContactName : string
+        ContactTitle : string   
+    }
+
+module Amesto =
+    module WebService =
+        let publish(details:SupplierDetails) = 
+            printf "Webservice got %A" details
+             // recieved supplier #%i: %s (%s, %s)" 
+               //     details.Id details.Name details.ContactName details.ContactTitle
+
+let handleContent content = 
+    Amesto.WebService.publish content
+
+
+
+let reader (mailbox:Actor<System.Uri>) =
 
     let handler = spawn mailbox "handler" <| actorOf handleContent
-    // check for loack
+
     let rec loop() = actor {
         let! message = mailbox.Receive()
-        for line in File.ReadAllLines(message.LocalPath) do
-            handler <! line
+        let suppliers = ``Visma Leverandør Data``.Load("data\suppliers.csv")
+        for supplier in suppliers.Rows do
+            handler <! 
+                { Id = supplier.SupplierID 
+                  Name = supplier.CompanyName
+                  ContactName = supplier.ContactName
+                  ContactTitle = supplier.ContactTitle } 
         return! loop()
     }
     loop()
 
 
 
-let observer filePath (mailbox:Actor<_>) =    
+let fileWatcher (scheduler:ITellScheduler) filePath (mailbox:Actor<_>) =    
     let fsw = new FileSystemWatcher(
                         Path = filePath, 
                         Filter = "*.*",
@@ -49,18 +78,19 @@ let observer filePath (mailbox:Actor<_>) =
                         NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
                         )
     
-    let reader = spawn mailbox "reader" readFile
+    let reader = spawn mailbox "reader" reader
+
+    let publish uri =
+                // FileSystemWatcher alerts of file creation while files are still locked
+                let readDelay = new TimeSpan(0,0,0,0,500)
+                scheduler.ScheduleTellOnce(readDelay, reader, uri)
     
     // subscribe to incoming file system events - send them to consoleWriter
     let subscription = 
         fsw.Created 
-        |> Observable.map(fun x -> x.ChangeType.ToString(), x.FullPath)
-        |> Observable.filter(fun (changeType, fileName) -> fileName.EndsWith(".lsi"))
-        |> Observable.subscribe(fun (changeType, fileName) -> 
-                
-                System.Threading.Thread.Sleep(1000) // sleeping to allow the OS time to finish copying...
-                reader <! new System.Uri(fileName)
-            )
+        |> Observable.map (fun file -> new System.Uri(file.FullPath))
+        |> Observable.filter (fun uri -> uri.LocalPath.EndsWith(".csv"))
+        |> Observable.subscribe publish
 
     mailbox.Defer <| fun () -> 
         subscription.Dispose()
@@ -73,16 +103,15 @@ let observer filePath (mailbox:Actor<_>) =
     loop ()
 
 
+let system = ActorSystem.Create("fileWatcher-system")
 
-// Create parser that loads and then delegates uploading line-by-line
-
-let system = ActorSystem.Create("observer-system")
-//let writer = spawn system "console-writer" <| actorOf (printfn "%A")
-// create manager responsible for serving listeners for provided paths
 let manager = spawn system "manager" <| actorOf2 (fun mailbox filePath ->
-    spawn mailbox ("observer-" + Uri.EscapeDataString(filePath)) (observer filePath) |> ignore)
+    let managerName = "observer-" + Uri.EscapeDataString(filePath)
+    let watcher = fileWatcher system.Scheduler filePath
+    spawn mailbox managerName watcher |> ignore)
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
+
 
 system.Terminate()
 
@@ -90,14 +119,5 @@ system.Terminate()
 
 
 
-let functionSystem = ActorSystem.Create("function-system")
 
-let actorOfSink (f: 'a -> unit) = actorOf2 (fun _ msg -> f msg)
-let print msg = printfn "Message recieved: %A" msg
 
-let printActorRef = 
-  actorOfSink print 
-  |> spawn functionSystem "print-actor"
-
-printActorRef <! 123
-printActorRef <! "hello"
