@@ -25,6 +25,37 @@ open Akka.FSharp
 open FSharp.Data
 
 
+
+
+// TODO:  Logging
+// TODO:  unit testing...
+
+
+
+
+// Utility
+
+let fileIsOpen (uri:Uri) =
+    try
+        use stream = File.Open(uri.LocalPath, FileMode.Open,  FileAccess.Read, FileShare.ReadWrite)
+        stream.Close()
+        false
+    with
+        | :? System.IO.IOException -> true
+
+
+
+let supervision = 
+    Strategy.OneForOne (fun e ->
+    match e with 
+    | _ ->
+        printf "Supervisor stopping the naughty child..."
+        // Add logging here
+        Directive.Restart)
+
+
+// Consumer
+
 type SupplierDetails = 
     { 
         Id : int
@@ -40,13 +71,14 @@ module Amesto =
 
 
 
+// Producer
 
 type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv"> // CSV schemas can be hard coded into scripts...
 
 let publishContent content = 
     Amesto.WebService.publish content
 
-let publishRows (uri:Uri) publisher =
+let publishRows publisher (uri:Uri) =
     use suppliers = ``Visma Leverandør Data``.Load(uri.LocalPath) 
     for supplier in suppliers.Rows do
         publisher <! 
@@ -57,32 +89,30 @@ let publishRows (uri:Uri) publisher =
 
 type ReadFile = | ReadFile of attempts:int * Uri
 
-let fileIsOpen (uri:Uri) =
-    try
-        use stream = File.Open(uri.LocalPath, FileMode.Open,  FileAccess.Read, FileShare.ReadWrite)
-        stream.Close()
-        false
-    with
-        | :? System.IO.IOException -> true
-
 let fileReader (mailbox:Actor<ReadFile>) =
+
+    let maxRetries, retryDelayMs = 10, 300
+
+    let delayedRead attempts uri =
+        let readDelay = new TimeSpan(0,0,0,0,retryDelayMs)
+        mailbox.Context.System.Scheduler.ScheduleTellOnce(readDelay, mailbox.Self, ReadFile(1, uri))
 
     let publisher = spawn mailbox "handler" <| actorOf publishContent
 
     let rec loop() = actor {
         let! ReadFile(attempts, uri) = mailbox.Receive()
 
-        let delayRead attempts uri =
-            let readDelay = new TimeSpan(0,0,0,0,300)
-            mailbox.Context.System.Scheduler.ScheduleTellOnce(readDelay, mailbox.Self, ReadFile(1, uri))
+        if attempts >= maxRetries then 
+            raise (System.IO.IOException(sprintf "Could not open file '%s'." (uri.ToString())))
 
         if fileIsOpen uri then
-            uri |> delayRead (attempts + 1)
+            uri |> delayedRead (attempts + 1)
         else 
-            publisher |> publishRows uri
+            uri |> publishRows publisher
         return! loop()
     }
     loop()
+
 
 let fileWatcher filePath (mailbox:Actor<_>) =    
     let fsw = new FileSystemWatcher(
@@ -114,11 +144,12 @@ let fileWatcher filePath (mailbox:Actor<_>) =
 let fileWatchingManager (mailbox:Actor<string>) filePath = 
     let managerName = "observer-" + Uri.EscapeDataString(filePath)
     let watcher = fileWatcher filePath
-    spawn mailbox managerName watcher |> ignore
+    spawnOpt mailbox managerName watcher [SupervisorStrategy(supervision)] |> ignore
+
 
 
 let system = ActorSystem.Create("fileWatcher-system")
-let manager = spawn system "manager" (actorOf2 fileWatchingManager)
+let manager = spawnOpt system "manager" (actorOf2 fileWatchingManager) [SupervisorStrategy(supervision)]
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
