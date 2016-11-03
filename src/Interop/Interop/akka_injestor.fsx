@@ -25,8 +25,6 @@ open Akka.FSharp
 open FSharp.Data
 
 
-type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv"> // CSV schemas can be hard coded into scripts
-
 type SupplierDetails = 
     { 
         Id : int
@@ -38,29 +36,33 @@ type SupplierDetails =
 module Amesto =
     module WebService =
         let publish(details:SupplierDetails) = 
-            printf "Publishing\r\n"
-            printf "%s" "rawr"
-            printf "Webservice got %A\r\n" details
-             // recieved supplier #%i: %s (%s, %s)" 
-               //     details.Id details.Name details.ContactName details.ContactTitle
+            printf "Webservice has: %i %s %s %s\r\n" 
+                   details.Id details.Name details.ContactName details.ContactTitle
 
-let handleContent content = 
+
+
+
+type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv"> // CSV schemas can be hard coded into scripts
+
+let publishContent content = 
     Amesto.WebService.publish content
 
+let publishRows (uri:Uri) publisher =
+    use suppliers = ``Visma Leverandør Data``.Load(uri.LocalPath) 
+    for supplier in suppliers.Rows do
+        publisher <! 
+              { Id = supplier.SupplierID 
+                Name = supplier.CompanyName
+                ContactName = supplier.ContactName
+                ContactTitle = supplier.ContactTitle }
 
-let reader (mailbox:Actor<System.Uri>) =
+let fileReader (mailbox:Actor<System.Uri>) =
 
-    let handler = spawn mailbox "handler" <| actorOf handleContent
+    let publisher = spawn mailbox "handler" <| actorOf publishContent
 
     let rec loop() = actor {
         let! uri = mailbox.Receive()
-        let suppliers = ``Visma Leverandør Data``.Load(uri.LocalPath)
-        for supplier in suppliers.Rows do
-            handler <! 
-                { Id = supplier.SupplierID 
-                  Name = supplier.CompanyName
-                  ContactName = supplier.ContactName
-                  ContactTitle = supplier.ContactTitle } 
+        publisher |> publishRows uri 
         return! loop()
     }
     loop()
@@ -73,21 +75,19 @@ let fileWatcher (scheduler:ITellScheduler) filePath (mailbox:Actor<_>) =
                         NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
                         )
 
-    let reader = spawn mailbox "reader" reader
+    let reader = spawn mailbox "filereader" fileReader
     let fileCreated uri =
-        // FileSystemWatcher alerts of file creation while files are still locked
         let readDelay = new TimeSpan(0,0,0,0,300)
-        scheduler.ScheduleTellOnce(readDelay, reader, uri)
+        scheduler.ScheduleTellOnce(readDelay, reader, uri) // FSW sends create event while the file is still locked
     
-    // subscribe to incoming file system events - send them to consoleWriter
-    let subscription = 
+    let eventSubscription = 
         fsw.Created 
         |> Observable.map (fun file -> new System.Uri(file.FullPath))
         |> Observable.filter (fun uri -> uri.LocalPath.EndsWith(".csv"))
         |> Observable.subscribe fileCreated
         
     mailbox.Defer <| fun () -> 
-        subscription.Dispose()
+        eventSubscription.Dispose()
         fsw.Dispose()
 
     let rec loop () = actor {
@@ -97,12 +97,17 @@ let fileWatcher (scheduler:ITellScheduler) filePath (mailbox:Actor<_>) =
     loop ()
 
 
+// refactring> let fileWatchingMaanger
+
 let system = ActorSystem.Create("fileWatcher-system")
 
-let manager = spawn system "manager" <| actorOf2 (fun mailbox filePath ->
-    let managerName = "observer-" + Uri.EscapeDataString(filePath)
-    let watcher = fileWatcher system.Scheduler filePath
-    spawn mailbox managerName watcher |> ignore)
+let manager = 
+    spawn system "manager" 
+    <| actorOf2 (fun mailbox filePath ->
+        let managerName = "observer-" + Uri.EscapeDataString(filePath)
+        let watcher = fileWatcher system.Scheduler filePath
+        spawn mailbox managerName watcher 
+        |> ignore)
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
@@ -110,8 +115,5 @@ manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 system.Terminate()
 
 
-
-
-
-
-
+// TODO: the file watching logic is brittle - it needs to wait an
+//       unspecified amount of time to check the file is unlocked (during slow batch jobs and file gen, f. ex)
