@@ -15,10 +15,10 @@
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 #r "../../packages/FSPowerPack.Core.Community/Lib/net40/FSharp.PowerPack.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
-#r "../../packages/NodaTime/lib/portable-net4+sl5+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1+XamariniOS1/NodaTime.dll"
-#r "../../packages/Hopac/lib/net45/Hopac.Core.dll"
-#r "../../packages/Hopac/lib/net45/Hopac.dll"
-#r "../../packages/Logary/lib/net40/Logary.dll"
+#r "../../packages/Serilog/lib/net46/Serilog.dll"
+#r "../../packages/Serilog.Sinks.Literate/lib/net45/Serilog.Sinks.Literate.dll"
+#r "../../packages/Destructurama.FSharp/lib/portable-net45+win+wpa81+wp80+MonoAndroid10+MonoTouch10/Destructurama.FSharp.dll"
+
 
 open System
 open System.IO
@@ -27,22 +27,29 @@ open Akka.Actor
 open Akka.Configuration
 open Akka.FSharp
 open FSharp.Data
-open Hopac
-open Hopac.Core
-open Logary
-open Logary.Configuration
-open Logary.Targets
-open Logary.Metric
-open Logary.Metrics
-open Logary.Message
+open Serilog
+open Serilog.Configuration
 
-// TODO:  Logging
+
 // TODO:  unit testing...
 
 
 
-
 // Utility
+
+do            
+    Log.Logger <- LoggerConfiguration()
+                .MinimumLevel.Verbose()
+                .WriteTo.LiterateConsole()
+                .Enrich.FromLogContext() 
+                .CreateLogger();
+
+let supervision = 
+    Strategy.OneForOne (fun e ->
+    match e with 
+    | _ ->
+        Log.Error(e, "Could not open locked file")
+        Directive.Restart)
 
 let fileIsOpen (uri:Uri) =
     try
@@ -51,28 +58,6 @@ let fileIsOpen (uri:Uri) =
         false
     with
         | :? System.IO.IOException -> true
-
-let logger = Logging.getLoggerByName "akka" 
-
-let logary =  // 
-  withLogaryManager "akka_injestor" (
-    withTargets [ Console.create (Console.empty) "console" ] >>
-    withRules [ Rule.createForTarget "console" ])
-  |> Hopac.run
-
-//event Info "Hello, this is {another} {world}!"
-//|> setField "world" "Earth"
-//|> setField "another" 1234
-//|> logger.logSimple
-
-
-
-let supervision = 
-    Strategy.OneForOne (fun e ->
-    match e with 
-    | _ ->
-        event Error e.Message |> logger.logSimple
-        Directive.Restart)
 
 
 // Consumer
@@ -112,9 +97,10 @@ type ReadFile = | ReadFile of attempts:int * Uri
 
 let fileReader (mailbox:Actor<ReadFile>) =
 
-    let maxRetries, retryDelayMs = 10, 300
+    let maxRetries, retryDelayMs = 10, 200
 
-    let delayedRead attempts uri =
+    let delayedRead (attempts:int) uri =
+        Log.Information("Delaying read of '{uri}' after {attempts} attempts to open", uri, attempts)
         let readDelay = new TimeSpan(0,0,0,0,retryDelayMs)
         mailbox.Context.System.Scheduler.ScheduleTellOnce(readDelay, mailbox.Self, ReadFile(1, uri))
 
@@ -123,8 +109,8 @@ let fileReader (mailbox:Actor<ReadFile>) =
     let rec loop() = actor {
         let! ReadFile(attempts, uri) = mailbox.Receive()
 
-        //if attempts >= maxRetries then 
-        raise (System.IO.IOException(sprintf "Could not open file '%s'." (uri.ToString())))
+        if attempts >= maxRetries then 
+            raise (System.IO.IOException(sprintf "Could not open file '%s'." (uri.ToString())))
 
         if fileIsOpen uri then
             uri |> delayedRead (attempts + 1)
@@ -168,11 +154,11 @@ let fileWatchingManager (mailbox:Actor<string>) filePath =
     spawnOpt mailbox managerName watcher [SupervisorStrategy(supervision)] |> ignore
 
 
-
 let system = ActorSystem.Create("fileWatcher-system")
 let manager = spawnOpt system "manager" (actorOf2 fileWatchingManager) [SupervisorStrategy(supervision)]
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
+
 
 
 system.Terminate()

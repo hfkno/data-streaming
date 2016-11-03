@@ -10,4 +10,6 @@ nuget FsPickler
 nuget FsPowerPack.Community
 nuget FsPowerPack.Core.Community
 nuget FsPowerPack.Linq.Community
-nuget Logary
+nuget Serilog
+nuget Serilog.Sinks.Literate
+nuget Destructurama.FSharp
