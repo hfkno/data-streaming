@@ -55,13 +55,31 @@ let publishRows (uri:Uri) publisher =
                 ContactName = supplier.ContactName
                 ContactTitle = supplier.ContactTitle }
 
-let fileReader (mailbox:Actor<System.Uri>) =
+type ReadFile = | ReadFile of attempts:int * Uri
+
+let fileIsOpen (uri:Uri) =
+    try
+        use stream = File.Open(uri.LocalPath, FileMode.Open,  FileAccess.Read, FileShare.ReadWrite)
+        stream.Close()
+        false
+    with
+        | :? System.IO.IOException -> true
+
+let fileReader (mailbox:Actor<ReadFile>) =
 
     let publisher = spawn mailbox "handler" <| actorOf publishContent
 
     let rec loop() = actor {
-        let! uri = mailbox.Receive()
-        publisher |> publishRows uri 
+        let! ReadFile(attempts, uri) = mailbox.Receive()
+
+        let delayRead attempts uri =
+            let readDelay = new TimeSpan(0,0,0,0,300)
+            mailbox.Context.System.Scheduler.ScheduleTellOnce(readDelay, mailbox.Self, ReadFile(1, uri))
+
+        if fileIsOpen uri then
+            uri |> delayRead (attempts + 1)
+        else 
+            publisher |> publishRows uri
         return! loop()
     }
     loop()
@@ -75,16 +93,12 @@ let fileWatcher filePath (mailbox:Actor<_>) =
                         )
 
     let reader = spawn mailbox "filereader" fileReader
-    let fileCreated uri =
-        let readDelay = new TimeSpan(0,0,0,0,300)
-        let scheduler = mailbox.Context.System.Scheduler
-        scheduler.ScheduleTellOnce(readDelay, reader, uri) // FSW sends create event while the file is still locked
-    
+
     let eventSubscription = 
         fsw.Created 
         |> Observable.map (fun file -> new System.Uri(file.FullPath))
         |> Observable.filter (fun uri -> uri.LocalPath.EndsWith(".csv"))
-        |> Observable.subscribe fileCreated
+        |> Observable.subscribe (fun uri -> reader <! ReadFile(0, uri))
             
     mailbox.Defer <| fun () -> 
         eventSubscription.Dispose()
@@ -110,7 +124,3 @@ manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
 
 system.Terminate()
-
-
-// TODO: the file watching logic is brittle - it needs to wait an
-//       unspecified amount of time to check the file is unlocked (during slow batch jobs and file gen, f. ex)
