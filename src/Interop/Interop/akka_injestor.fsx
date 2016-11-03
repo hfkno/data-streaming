@@ -6,14 +6,11 @@
 
 *)
 
-
 #r "../../packages/Akka/lib/net45/Akka.dll"
 #r "../../packages/Akka.FSharp/lib/net45/Akka.FSharp.dll"
-#r "../../packages/Akka.DI.Autofac/lib/net45/Akka.DI.Autofac.dll"
 #r "../../packages/Akka.Serialization.Wire/lib/net45/Akka.Serialization.Wire.dll"
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
-#r "../../packages/FSPowerPack.Core.Community/Lib/net40/FSharp.PowerPack.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 #r "../../packages/Serilog/lib/net46/Serilog.dll"
 #r "../../packages/Serilog.Sinks.Literate/lib/net45/Serilog.Sinks.Literate.dll"
@@ -33,8 +30,6 @@ open Serilog.Configuration
 
 // TODO:  unit testing...
 
-
-
 // Utility
 
 do            
@@ -43,7 +38,7 @@ do
                 .WriteTo.LiterateConsole()
                 .Enrich.FromLogContext() 
                 .CreateLogger();
-
+                
 let supervision = 
     Strategy.OneForOne (fun e ->
     match e with 
@@ -53,7 +48,7 @@ let supervision =
 
 let fileIsOpen (uri:Uri) =
     try
-        use stream = File.Open(uri.LocalPath, FileMode.Open,  FileAccess.Read, FileShare.ReadWrite)
+        use stream = File.Open(uri.LocalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
         stream.Close()
         false
     with
@@ -73,6 +68,7 @@ type SupplierDetails =
 module Amesto =
     module WebService =
         let publish(details:SupplierDetails) = 
+            Log.Information("Publishing {@details}", details)
             printf "Webservice has: %i %s %s %s\r\n" details.Id details.Name details.ContactName details.ContactTitle
 
 
@@ -104,7 +100,7 @@ let fileReader (mailbox:Actor<ReadFile>) =
         let readDelay = new TimeSpan(0,0,0,0,retryDelayMs)
         mailbox.Context.System.Scheduler.ScheduleTellOnce(readDelay, mailbox.Self, ReadFile(1, uri))
 
-    let publisher = spawn mailbox "handler" <| actorOf publishContent
+    let publisher = spawn mailbox "publisher" <| actorOf publishContent
 
     let rec loop() = actor {
         let! ReadFile(attempts, uri) = mailbox.Receive()
@@ -120,10 +116,9 @@ let fileReader (mailbox:Actor<ReadFile>) =
     }
     loop()
 
-
-let fileWatcher filePath (mailbox:Actor<_>) =    
+let folderWatcher path (mailbox:Actor<_>) =    
     let fsw = new FileSystemWatcher(
-                        Path = filePath, 
+                        Path = path, 
                         Filter = "*.*",
                         EnableRaisingEvents = true, 
                         NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
@@ -148,14 +143,13 @@ let fileWatcher filePath (mailbox:Actor<_>) =
     loop ()
 
 
-let fileWatchingManager (mailbox:Actor<string>) filePath = 
-    let managerName = "observer-" + Uri.EscapeDataString(filePath)
-    let watcher = fileWatcher filePath
-    spawnOpt mailbox managerName watcher [SupervisorStrategy(supervision)] |> ignore
-
+let integrationManager (mailbox:Actor<string>) path = 
+    let folderWatcherName = "observer-" + Uri.EscapeDataString(path)
+    let watcher = folderWatcher path
+    spawnOpt mailbox folderWatcherName watcher [SupervisorStrategy(supervision)] |> ignore
 
 let system = ActorSystem.Create("fileWatcher-system")
-let manager = spawnOpt system "manager" (actorOf2 fileWatchingManager) [SupervisorStrategy(supervision)]
+let manager = spawnOpt system "manager" (actorOf2 integrationManager) [SupervisorStrategy(supervision)]
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
