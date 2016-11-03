@@ -36,13 +36,12 @@ type SupplierDetails =
 module Amesto =
     module WebService =
         let publish(details:SupplierDetails) = 
-            printf "Webservice has: %i %s %s %s\r\n" 
-                   details.Id details.Name details.ContactName details.ContactTitle
+            printf "Webservice has: %i %s %s %s\r\n" details.Id details.Name details.ContactName details.ContactTitle
 
 
 
 
-type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv"> // CSV schemas can be hard coded into scripts
+type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv"> // CSV schemas can be hard coded into scripts...
 
 let publishContent content = 
     Amesto.WebService.publish content
@@ -86,7 +85,7 @@ let fileWatcher filePath (mailbox:Actor<_>) =
         |> Observable.map (fun file -> new System.Uri(file.FullPath))
         |> Observable.filter (fun uri -> uri.LocalPath.EndsWith(".csv"))
         |> Observable.subscribe fileCreated
-        
+            
     mailbox.Defer <| fun () -> 
         eventSubscription.Dispose()
         fsw.Dispose()
@@ -98,19 +97,14 @@ let fileWatcher filePath (mailbox:Actor<_>) =
     loop ()
 
 
-let fileWatchingManager (mailbox:Actor<string>) = 
-    let rec loop() = actor {
-        let! filePath = mailbox.Receive()
-        let managerName = "observer-" + Uri.EscapeDataString(filePath)
-        let watcher = fileWatcher filePath
-        spawn mailbox managerName watcher  |> ignore
-        return! loop()
-    }
-    loop()
+let fileWatchingManager (mailbox:Actor<string>) filePath = 
+    let managerName = "observer-" + Uri.EscapeDataString(filePath)
+    let watcher = fileWatcher filePath
+    spawn mailbox managerName watcher |> ignore
+
 
 let system = ActorSystem.Create("fileWatcher-system")
-
-let manager = spawn system "manager" (fileWatchingManager)
+let manager = spawn system "manager" (actorOf2 fileWatchingManager)
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
