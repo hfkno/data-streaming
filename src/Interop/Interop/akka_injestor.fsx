@@ -67,7 +67,7 @@ let fileReader (mailbox:Actor<System.Uri>) =
     }
     loop()
 
-let fileWatcher (scheduler:ITellScheduler) filePath (mailbox:Actor<_>) =    
+let fileWatcher filePath (mailbox:Actor<_>) =    
     let fsw = new FileSystemWatcher(
                         Path = filePath, 
                         Filter = "*.*",
@@ -78,6 +78,7 @@ let fileWatcher (scheduler:ITellScheduler) filePath (mailbox:Actor<_>) =
     let reader = spawn mailbox "filereader" fileReader
     let fileCreated uri =
         let readDelay = new TimeSpan(0,0,0,0,300)
+        let scheduler = mailbox.Context.System.Scheduler
         scheduler.ScheduleTellOnce(readDelay, reader, uri) // FSW sends create event while the file is still locked
     
     let eventSubscription = 
@@ -97,17 +98,19 @@ let fileWatcher (scheduler:ITellScheduler) filePath (mailbox:Actor<_>) =
     loop ()
 
 
-// refactring> let fileWatchingMaanger
+let fileWatchingManager (mailbox:Actor<string>) = 
+    let rec loop() = actor {
+        let! filePath = mailbox.Receive()
+        let managerName = "observer-" + Uri.EscapeDataString(filePath)
+        let watcher = fileWatcher filePath
+        spawn mailbox managerName watcher  |> ignore
+        return! loop()
+    }
+    loop()
 
 let system = ActorSystem.Create("fileWatcher-system")
 
-let manager = 
-    spawn system "manager" 
-    <| actorOf2 (fun mailbox filePath ->
-        let managerName = "observer-" + Uri.EscapeDataString(filePath)
-        let watcher = fileWatcher system.Scheduler filePath
-        spawn mailbox managerName watcher 
-        |> ignore)
+let manager = spawn system "manager" (fileWatchingManager)
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
