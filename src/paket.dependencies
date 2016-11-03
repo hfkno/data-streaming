@@ -1,4 +1,5 @@
 source https://www.nuget.org/api/v2
+nuget Autofac
 nuget Akka
 nuget Akka.DI.Autofac
 nuget Akka.FSharp
@@ -9,3 +10,4 @@ nuget FsPickler
 nuget FsPowerPack.Community
 nuget FsPowerPack.Core.Community
 nuget FsPowerPack.Linq.Community
+nuget Logary

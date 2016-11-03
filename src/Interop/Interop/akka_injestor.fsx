@@ -15,6 +15,10 @@
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 #r "../../packages/FSPowerPack.Core.Community/Lib/net40/FSharp.PowerPack.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
+#r "../../packages/NodaTime/lib/portable-net4+sl5+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1+XamariniOS1/NodaTime.dll"
+#r "../../packages/Hopac/lib/net45/Hopac.Core.dll"
+#r "../../packages/Hopac/lib/net45/Hopac.dll"
+#r "../../packages/Logary/lib/net40/Logary.dll"
 
 open System
 open System.IO
@@ -23,9 +27,14 @@ open Akka.Actor
 open Akka.Configuration
 open Akka.FSharp
 open FSharp.Data
-
-
-
+open Hopac
+open Hopac.Core
+open Logary
+open Logary.Configuration
+open Logary.Targets
+open Logary.Metric
+open Logary.Metrics
+open Logary.Message
 
 // TODO:  Logging
 // TODO:  unit testing...
@@ -43,14 +52,26 @@ let fileIsOpen (uri:Uri) =
     with
         | :? System.IO.IOException -> true
 
+let logger = Logging.getLoggerByName "akka" 
+
+let logary =  // 
+  withLogaryManager "akka_injestor" (
+    withTargets [ Console.create (Console.empty) "console" ] >>
+    withRules [ Rule.createForTarget "console" ])
+  |> Hopac.run
+
+//event Info "Hello, this is {another} {world}!"
+//|> setField "world" "Earth"
+//|> setField "another" 1234
+//|> logger.logSimple
+
 
 
 let supervision = 
     Strategy.OneForOne (fun e ->
     match e with 
     | _ ->
-        printf "Supervisor stopping the naughty child..."
-        // Add logging here
+        event Error e.Message |> logger.logSimple
         Directive.Restart)
 
 
@@ -102,8 +123,8 @@ let fileReader (mailbox:Actor<ReadFile>) =
     let rec loop() = actor {
         let! ReadFile(attempts, uri) = mailbox.Receive()
 
-        if attempts >= maxRetries then 
-            raise (System.IO.IOException(sprintf "Could not open file '%s'." (uri.ToString())))
+        //if attempts >= maxRetries then 
+        raise (System.IO.IOException(sprintf "Could not open file '%s'." (uri.ToString())))
 
         if fileIsOpen uri then
             uri |> delayedRead (attempts + 1)
