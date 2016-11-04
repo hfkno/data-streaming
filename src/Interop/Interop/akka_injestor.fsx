@@ -9,6 +9,7 @@
 #r "../../packages/Akka/lib/net45/Akka.dll"
 #r "../../packages/Akka.FSharp/lib/net45/Akka.FSharp.dll"
 #r "../../packages/Akka.Serialization.Wire/lib/net45/Akka.Serialization.Wire.dll"
+#r "../../packages/Akka.NET.FSharp.API.Extensions/lib/net45/ComposeIt.Akka.FSharp.Extensions.dll"
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
@@ -23,6 +24,7 @@ open Akka
 open Akka.Actor
 open Akka.Configuration
 open Akka.FSharp
+open ComposeIt.Akka.FSharp.Extensions.Lifecycle
 open FSharp.Data
 open Serilog
 open Serilog.Configuration
@@ -51,9 +53,9 @@ do
                 .CreateLogger();
 
 
-let retrySupervision = Strategy.OneForOne ((fun e -> Log.Error(e, "Opening file"); Directive.Restart), retries=10, timeout=TimeSpan.FromSeconds(20.0))
+let retrySupervision = Strategy.OneForOne ((fun e -> Log.Error(e, "Opening file"); Directive.Restart), retries=10, timeout=TimeSpan.FromSeconds(3.0))
                 
-let supervision = 
+let supervisionZ = 
     Strategy.OneForOne (fun e ->
     match e with 
     | _ ->
@@ -144,12 +146,40 @@ let fileReader (mailbox:Actor<ReadFile>) =
     loop()
 
 
+type FileReader(publisher) =
+    inherit Actor()
+
+    override __.OnReceive message =
+        match message with
+        | :? ReadFile as re ->
+            match re with
+            | ReadFile (attempts, uri) ->
+                
+                Log.Information("Attempting to read file {uri}", uri)
+                uri |> publishRows publisher
+        | _ -> failwith "unknown format"     
+        ()
+
+    override __.PreRestart(e, message) =
+        Log.Debug(e, message.ToString())
+        FileReader.Context.Self.Forward(message);
+        //base.Self.Forward(message)
+        //base.PreRestart(e, message)
+        ()
+
 let folderWatcher path (mailbox:Actor<_>) =    
 
-    let reader = spawn mailbox "filereader" fileReader
-    let read (uri:Uri) = reader <! ReadFile(0, uri)
     let onlyCsv (uri:Uri) = uri.LocalPath.EndsWith(".csv")
 
+    let restartReader = Some(fun (baseFn : exn * obj -> unit) -> ())
+    //let reader = spawnOvrd mailbox "filereader" fileReader ({defOvrd with PreRestart=restartReader})
+    let publisher = spawn mailbox "publisher" <| actorOf publishContent
+    let props = [| publisher :> obj |]
+    let fReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
+
+    //let reader = spawnOpt mailbox "filereader" fReader
+    let read (uri:Uri) = fReader <! ReadFile(0, uri)
+   
     let fsw, eventSubscription = fileEventSubscription onlyCsv read path
             
     mailbox.Defer <| fun () -> 
@@ -176,3 +206,6 @@ manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
 
 system.Terminate()
+
+
+
