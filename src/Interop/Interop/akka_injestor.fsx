@@ -52,16 +52,14 @@ do
                 .Enrich.FromLogContext() 
                 .CreateLogger();
 
-
-let retrySupervision = Strategy.OneForOne ((fun e -> Log.Error(e, "Opening file"); Directive.Restart), retries=10, timeout=TimeSpan.FromSeconds(3.0))
+let retrySupervision = 
+    Strategy.OneForOne 
+        ((fun e -> 
+            Log.Error(e, "Opening file...")
+            Directive.Restart), 
+        retries=10, 
+        timeout=TimeSpan.FromSeconds(3.0))
                 
-let supervisionZ = 
-    Strategy.OneForOne (fun e ->
-    match e with 
-    | _ ->
-        Log.Error(e, "Could not open locked file")
-        Directive.Restart)
-
 let fileIsOpen (uri:Uri) =
     try
         use stream = File.Open(uri.LocalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
@@ -97,7 +95,6 @@ module Amesto =
     module WebService =
         let publish(details:SupplierDetails) = 
             Log.Information("Publishing {@details}", details)
-            //printf "Webservice has: %i %s %s %s\r\n" details.Id details.Name details.ContactName details.ContactTitle
 
 
 
@@ -119,66 +116,31 @@ let publishRows publisher (uri:Uri) =
 
 type ReadFile = | ReadFile of attempts:int * Uri
 
-let fileReader (mailbox:Actor<ReadFile>) =
-
-    let maxRetries, retryDelayMs = 10, 200
-
-    let delayedRead (attempts:int) uri =
-        Log.Information("Delaying read of '{uri}' after {attempts} attempts to open", uri, attempts)
-        let readDelay = new TimeSpan(0,0,0,0,retryDelayMs)
-        mailbox.Context.System.Scheduler.ScheduleTellOnce(readDelay, mailbox.Self, ReadFile(1, uri))
-
-    let publisher = spawn mailbox "publisher" <| actorOf publishContent
-
-    let rec loop() = actor {
-        let! ReadFile(attempts, uri) = mailbox.Receive()
-        Log.Information("Attempting to read file {uri}", uri)
-
-        if attempts >= maxRetries then 
-            raise (System.IO.IOException(sprintf "Could not open file '%s'." (uri.ToString())))
-
-        if fileIsOpen uri then
-            uri |> delayedRead (attempts + 1)
-        else 
-            uri |> publishRows publisher
-        return! loop()
-    }
-    loop()
-
 
 type FileReader(publisher) =
-    inherit Actor()
+    inherit Actor() 
 
     override __.OnReceive message =
         match message with
-        | :? ReadFile as re ->
-            match re with
-            | ReadFile (attempts, uri) ->
-                
-                Log.Information("Attempting to read file {uri}", uri)
-                uri |> publishRows publisher
-        | _ -> failwith "unknown format"     
-        ()
+        | :? Uri as uri ->
+            Log.Information("Attempting to read file {uri}", uri)
+            uri |> publishRows publisher
+        | _ -> failwith "unknown format"   
 
     override __.PreRestart(e, message) =
-        Log.Debug(e, message.ToString())
-        FileReader.Context.Self.Forward(message);
-        //base.Self.Forward(message)
-        //base.PreRestart(e, message)
-        ()
+        let context = FileReader.Context
+        context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromSeconds(0.2), context.Self, message)
+
 
 let folderWatcher path (mailbox:Actor<_>) =    
 
     let onlyCsv (uri:Uri) = uri.LocalPath.EndsWith(".csv")
 
-    let restartReader = Some(fun (baseFn : exn * obj -> unit) -> ())
-    //let reader = spawnOvrd mailbox "filereader" fileReader ({defOvrd with PreRestart=restartReader})
     let publisher = spawn mailbox "publisher" <| actorOf publishContent
     let props = [| publisher :> obj |]
-    let fReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
+    let fileReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
 
-    //let reader = spawnOpt mailbox "filereader" fReader
-    let read (uri:Uri) = fReader <! ReadFile(0, uri)
+    let read (uri:Uri) = fileReader <! uri
    
     let fsw, eventSubscription = fileEventSubscription onlyCsv read path
             
@@ -196,16 +158,13 @@ let folderWatcher path (mailbox:Actor<_>) =
 let integrationManager (mailbox:Actor<string>) path = 
     let folderWatcherName = "observer-" + Uri.EscapeDataString(path)
     let watcher = folderWatcher path
-    spawnOpt mailbox folderWatcherName watcher [SupervisorStrategy(supervision)] |> ignore
+    spawn mailbox folderWatcherName watcher |> ignore
 
 let system = ActorSystem.Create("fileWatcher-system")
-let manager = spawnOpt system "manager" (actorOf2 integrationManager) [SupervisorStrategy(supervision)]
+let manager = spawn system "manager" (actorOf2 integrationManager) 
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
 
 
 
 system.Terminate()
-
-
-
