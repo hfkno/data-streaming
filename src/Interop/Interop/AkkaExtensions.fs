@@ -33,7 +33,7 @@ module Lifecycle =
         {
             PreStart    : (Actor -> (unit -> unit) -> unit) option;
             PostStop    : (Actor -> (unit -> unit) -> unit) option;
-            PreRestart  : (Actor -> (exn * obj -> unit) -> unit) option;
+            PreRestart  : (Actor -> exn * (msg:obj) -> unit) -> unit) option;
             PostRestart : (Actor -> (exn -> unit) -> unit) option;
         }
 

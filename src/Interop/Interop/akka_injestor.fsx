@@ -6,13 +6,15 @@
 
 *)
 
+
 #r "../../packages/Akka/lib/net45/Akka.dll"
 #r "../../packages/Akka.FSharp/lib/net45/Akka.FSharp.dll"
 #r "../../packages/Akka.Serialization.Wire/lib/net45/Akka.Serialization.Wire.dll"
-#r "../../packages/Akka.NET.FSharp.API.Extensions/lib/net45/ComposeIt.Akka.FSharp.Extensions.dll"
+//#r "../../packages/Akka.NET.FSharp.API.Extensions/lib/net45/ComposeIt.Akka.FSharp.Extensions.dll"
+#r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
+#r "../../packages/FSPowerPack.Linq.Community/Lib/net40/FSharp.PowerPack.Linq.dll"
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
-#r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 #r "../../packages/Serilog/lib/net46/Serilog.dll"
 #r "../../packages/Serilog.Sinks.Literate/lib/net45/Serilog.Sinks.Literate.dll"
 #r "../../packages/Akka.Logger.Serilog/lib/net45/Akka.Logger.Serilog.dll"
@@ -25,11 +27,14 @@ open Akka
 open Akka.Actor
 open Akka.Configuration
 open Akka.FSharp
-open ComposeIt.Akka.FSharp.Extensions.Lifecycle
+
 open FSharp.Data
 open Serilog
 open Serilog.Configuration
 
+
+#load "AkkaExtensions.fs"
+open Interop.Lifecycle
 
 // TODO:  unit testing...
 //
@@ -114,9 +119,7 @@ let publishRows publisher (uri:Uri) =
                 Name = supplier.CompanyName
                 ContactName = supplier.ContactName
                 ContactTitle = supplier.ContactTitle }
-
-type ReadFile = | ReadFile of attempts:int * Uri
-
+                
 
 type FileReader(publisher) =
     inherit Actor() 
@@ -133,13 +136,31 @@ type FileReader(publisher) =
         context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromSeconds(0.2), context.Self, message)
 
 
+let fileReadFunc (mailbox:Actor<Uri>) =
+
+    let publisher = spawn mailbox "publisher" <| actorOf publishContent
+
+    let rec loop() = actor {
+        let! uri = mailbox.Receive()
+        Log.Information("Attempting to read file {uri}", uri)
+        uri |> publishRows publisher
+        return! loop()
+    }
+    loop()
+
 let folderWatcher path (mailbox:Actor<_>) =    
 
     let onlyCsv (uri:Uri) = uri.LocalPath.EndsWith(".csv")
 
-    let publisher = spawn mailbox "publisher" <| actorOf publishContent
+    let publisher = spawn mailbox "publisher" <| actorOf publishContent // add superviser here?
     let props = [| publisher :> obj |]
-    let fileReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
+    //let fileReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
+
+    let preRestart = Some(fun (actor:Actor) (baseFn: (exn * obj -> unit)) -> ())
+    let fileReader = Lifecycle.spawnOptOvrd mailbox "filereader" fileReadFunc [SupervisorStrategy(retrySupervision)] ({Lifecycle.defOvrd with PreRestart=preRestart})
+
+    //let fileReader2 = Lifecycle.spawnOvrd
+
 
     let read (uri:Uri) = fileReader <! uri
    
