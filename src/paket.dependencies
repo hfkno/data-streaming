@@ -5,6 +5,7 @@ nuget Akka.DI.Autofac
 nuget Akka.FSharp
 nuget Akka.Serialization.Wire
 nuget Akka.TestKit.NUnit3
+nuget Akka.Logger.Serilog
 nuget FSharp.Data
 nuget FsPickler
 nuget FsPowerPack.Community
@@ -13,4 +14,3 @@ nuget FsPowerPack.Linq.Community
 nuget Serilog
 nuget Serilog.Sinks.Literate
 nuget Destructurama.FSharp
-nuget Akka.Logger.Serilog

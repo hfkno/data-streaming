@@ -29,6 +29,17 @@ open Serilog.Configuration
 
 
 // TODO:  unit testing...
+//
+//        Test strategy:
+//          Create a test system
+//          Observe a folder
+//          Make changes to the folder
+//          Check that publishing is sent
+//
+//          Test publishing...
+//
+//          Split testing... Test the management and observation, then test "reader <! ReadFile(0, uri)", then test locking
+
 
 // Utility
 
@@ -115,6 +126,8 @@ let fileReader (mailbox:Actor<ReadFile>) =
         return! loop()
     }
     loop()
+
+
 
 let folderWatcher path (mailbox:Actor<_>) =    
     let fsw = new FileSystemWatcher(
