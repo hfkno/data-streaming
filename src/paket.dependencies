@@ -14,3 +14,4 @@ nuget FsPowerPack.Linq.Community
 nuget Serilog
 nuget Serilog.Sinks.Literate
 nuget Destructurama.FSharp
+nuget Akka.NET.FSharp.API.Extensions

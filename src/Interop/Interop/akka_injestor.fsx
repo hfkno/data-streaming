@@ -49,6 +49,9 @@ do
                 .WriteTo.LiterateConsole()
                 .Enrich.FromLogContext() 
                 .CreateLogger();
+
+
+let retrySupervision = Strategy.OneForOne ((fun e -> Log.Error(e, "Opening file"); Directive.Restart), retries=10, timeout=TimeSpan.FromSeconds(20.0))
                 
 let supervision = 
     Strategy.OneForOne (fun e ->
@@ -65,6 +68,18 @@ let fileIsOpen (uri:Uri) =
     with
         | :? System.IO.IOException -> true
 
+let fileEventSubscription filter handler path =
+    let fsw = new FileSystemWatcher(
+                        Path = path, 
+                        Filter = "*.*",
+                        EnableRaisingEvents = true, 
+                        NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
+                        )
+    fsw, fsw.Created 
+        |> Observable.map (fun file -> new System.Uri(file.FullPath))
+        |> Observable.filter filter
+        |> Observable.subscribe handler
+
 
 // Consumer
 
@@ -80,7 +95,7 @@ module Amesto =
     module WebService =
         let publish(details:SupplierDetails) = 
             Log.Information("Publishing {@details}", details)
-            printf "Webservice has: %i %s %s %s\r\n" details.Id details.Name details.ContactName details.ContactTitle
+            //printf "Webservice has: %i %s %s %s\r\n" details.Id details.Name details.ContactName details.ContactTitle
 
 
 
@@ -115,6 +130,7 @@ let fileReader (mailbox:Actor<ReadFile>) =
 
     let rec loop() = actor {
         let! ReadFile(attempts, uri) = mailbox.Receive()
+        Log.Information("Attempting to read file {uri}", uri)
 
         if attempts >= maxRetries then 
             raise (System.IO.IOException(sprintf "Could not open file '%s'." (uri.ToString())))
@@ -128,22 +144,13 @@ let fileReader (mailbox:Actor<ReadFile>) =
     loop()
 
 
-
 let folderWatcher path (mailbox:Actor<_>) =    
-    let fsw = new FileSystemWatcher(
-                        Path = path, 
-                        Filter = "*.*",
-                        EnableRaisingEvents = true, 
-                        NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
-                        )
 
     let reader = spawn mailbox "filereader" fileReader
+    let read (uri:Uri) = reader <! ReadFile(0, uri)
+    let onlyCsv (uri:Uri) = uri.LocalPath.EndsWith(".csv")
 
-    let eventSubscription = 
-        fsw.Created 
-        |> Observable.map (fun file -> new System.Uri(file.FullPath))
-        |> Observable.filter (fun uri -> uri.LocalPath.EndsWith(".csv"))
-        |> Observable.subscribe (fun uri -> reader <! ReadFile(0, uri))
+    let fsw, eventSubscription = fileEventSubscription onlyCsv read path
             
     mailbox.Defer <| fun () -> 
         eventSubscription.Dispose()
