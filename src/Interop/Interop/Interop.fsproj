@@ -44,6 +44,7 @@
     </None>
     <None Include="EIP.md" />
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="AkkaExtensions.fs" />
     <Compile Include="kafka-interop.fsx" />
     <None Include="eip.fsx" />
     <None Include="akka_injestor.fsx" />

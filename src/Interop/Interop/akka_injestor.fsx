@@ -15,6 +15,7 @@
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 #r "../../packages/Serilog/lib/net46/Serilog.dll"
 #r "../../packages/Serilog.Sinks.Literate/lib/net45/Serilog.Sinks.Literate.dll"
+#r "../../packages/Akka.Logger.Serilog/lib/net45/Akka.Logger.Serilog.dll"
 #r "../../packages/Destructurama.FSharp/lib/portable-net45+win+wpa81+wp80+MonoAndroid10+MonoTouch10/Destructurama.FSharp.dll"
 
 
@@ -160,7 +161,8 @@ let integrationManager (mailbox:Actor<string>) path =
     let watcher = folderWatcher path
     spawn mailbox folderWatcherName watcher |> ignore
 
-let system = ActorSystem.Create("fileWatcher-system")
+let config = ConfigurationFactory.ParseString("akka { loglevel=INFO,  loggers=[\"Akka.Logger.Serilog.SerilogLogger, Akka.Logger.Serilog\"]}")
+let system = ActorSystem.Create("fileWatcher-system", config)
 let manager = spawn system "manager" (actorOf2 integrationManager) 
 
 manager <! __SOURCE_DIRECTORY__ + "\\test\\"
