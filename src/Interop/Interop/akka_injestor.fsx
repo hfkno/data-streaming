@@ -61,16 +61,10 @@ let retrySupervision =
     Strategy.OneForOne 
         ((fun e -> 
             match e with 
-            | :? System.IO.IOException ->
-                Log.Error(e, "Opening file...")
-                Log.CloseAndFlush()
-                Directive.Restart
-            | _ -> 
-                Log.Error(e, "Unexpected error")
-                Log.CloseAndFlush()
-                Directive.Stop
+            | :? System.IO.IOException -> Directive.Restart
+            | _ -> Directive.Stop
             ), 
-        retries=10, 
+        retries=1, 
         timeout=TimeSpan.FromSeconds(3.0))
                 
 let fileIsOpen (uri:Uri) =
@@ -88,11 +82,13 @@ let fileEventSubscription filter handler path =
                         EnableRaisingEvents = true, 
                         NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
                         )
+    let subscription =
+        fsw.Created 
+            |> Observable.map (fun file -> new System.Uri(file.FullPath))
+            |> Observable.filter filter
+            |> Observable.subscribe handler
+    fsw, subscription
 
-    fsw, fsw.Created 
-        |> Observable.map (fun file -> new System.Uri(file.FullPath))
-        |> Observable.filter filter
-        |> Observable.subscribe handler
 
 
 // Consumer
@@ -121,8 +117,9 @@ module Amesto =
 // Producer
 
 [<Literal>]
-let ``Visma Leverandør CSV Schema`` = "Name (string), OrgNr (string), Address (string), PostNr (string), CountryCode (string), Email (string), PhoneNr (string), MobilePhoneNr (string), FaxNr (string), ResKontroNr (string)"
-type ``Visma Leverandør Data``= CsvProvider<Schema=``Visma Leverandør CSV Schema``, HasHeaders = false> // Separators = ";",
+let ``Visma Leverandør CSV Schema`` = "Name (string), OrgNr (string), Address (string), PostNr (string), CountryCode (string), \
+                                       Email (string), PhoneNr (string), MobilePhoneNr (string), FaxNr (string), ResKontroNr (string)"
+type ``Visma Leverandør Data``= CsvProvider<Schema=``Visma Leverandør CSV Schema``, Separators = ";", HasHeaders = false>
 
 let publishContent content = 
     Amesto.WebService.publish content
@@ -146,14 +143,14 @@ let publishRows publisher (uri:Uri) =
 type FileReader(publisher) =
     inherit Actor() 
 
-    override __.OnReceive message =
+    override x.OnReceive message =
         match message with
         | :? Uri as uri ->
-            Log.Information("Attempting to read file {uri}", uri)
+            Log.Information("Attempting to read file {uri} ({Self})", uri, x.Self)
             uri |> publishRows publisher
         | _ -> failwith "unknown format"   
 
-    override __.PreRestart(e, message) =
+    override x.PreRestart(e, message) =
         match e with
         | :? System.IO.IOException ->
             let context = FileReader.Context
