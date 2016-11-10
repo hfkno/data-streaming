@@ -10,7 +10,6 @@
 #r "../../packages/Akka/lib/net45/Akka.dll"
 #r "../../packages/Akka.FSharp/lib/net45/Akka.FSharp.dll"
 #r "../../packages/Akka.Serialization.Wire/lib/net45/Akka.Serialization.Wire.dll"
-//#r "../../packages/Akka.NET.FSharp.API.Extensions/lib/net45/ComposeIt.Akka.FSharp.Extensions.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 #r "../../packages/FSPowerPack.Linq.Community/Lib/net40/FSharp.PowerPack.Linq.dll"
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
@@ -156,7 +155,12 @@ let folderWatcher path (mailbox:Actor<_>) =
     let props = [| publisher :> obj |]
     //let fileReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
 
-    let preRestart = Some(fun (actor:Actor) (baseFn: (exn * obj -> unit)) -> ())
+    let preRestart = Some(fun (actor:FunActor<'a, 'b>) (exn) (message:obj) (baseFn: (exn * obj -> unit)) -> 
+        //let r = ActorBase.Context // (actor :> ActorBase).Context
+        //let context = actor.Context
+        //context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromSeconds(0.2), context.Self, message)
+        ()
+        )
     let fileReader = Lifecycle.spawnOptOvrd mailbox "filereader" fileReadFunc [SupervisorStrategy(retrySupervision)] ({Lifecycle.defOvrd with PreRestart=preRestart})
 
     //let fileReader2 = Lifecycle.spawnOvrd

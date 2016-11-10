@@ -29,17 +29,24 @@ module Lifecycle =
     open Akka.FSharp.Linq
     open Microsoft.FSharp.Linq
 
-    type LifecycleOverride =
+
+    type Foo = 
         {
-            PreStart    : (Actor -> (unit -> unit) -> unit) option;
-            PostStop    : (Actor -> (unit -> unit) -> unit) option;
-            PreRestart  : (Actor -> exn * (msg:obj) -> unit) -> unit) option;
-            PostRestart : (Actor -> (exn -> unit) -> unit) option;
+            rawr : string   
+        }
+
+    type LifecycleOverride<'Message, 'Returned> =
+        {
+            PreStart    : (FunActor<'Message, 'Returned> -> (unit -> unit) -> unit) option;
+            PostStop    : (FunActor<'Message, 'Returned> -> (unit -> unit) -> unit) option;
+            PreRestart  : (FunActor<'Message, 'Returned> -> exn -> obj -> (exn * obj -> unit) -> unit) option; /// Start here!  Want to pass the message to the handler defined by the user.  Currently it's just being passed the bases handler, not the info...
+                                                                                                 // The passing works out... it looks like FunActor does not have access to the context...
+            PostRestart : (FunActor<'Message, 'Returned> -> exn -> (exn -> unit) -> unit) option;
         }
 
     let defOvrd = {PreStart = None; PostStop = None; PreRestart = None; PostRestart = None}
     
-    type FunActorExt<'Message, 'Returned>(actor : Actor<'Message> -> Cont<'Message, 'Returned>, overrides : LifecycleOverride) =
+    type FunActorExt<'Message, 'Returned>(actor : Actor<'Message> -> Cont<'Message, 'Returned>, overrides : LifecycleOverride<'Message ,'Returned>) =
         inherit FunActor<'Message, 'Returned>(actor)
 
         member __.BasePreStart() = base.PreStart ()
@@ -58,11 +65,11 @@ module Lifecycle =
         override x.PreRestart(exn, msg) =
             match overrides.PreRestart with
             | None -> x.BasePreRestart (exn, msg)
-            | Some o -> o x x.BasePreRestart
+            | Some o -> o x exn msg x.BasePreRestart
         override x.PostRestart(exn) =
             match overrides.PostRestart with
             | None -> x.BasePostRestart (exn)
-            | Some o -> o x x.BasePostRestart
+            | Some o -> o x exn x.BasePostRestart
 
     type ExpressionExt = 
         static member ToExpression(f : System.Linq.Expressions.Expression<System.Func<FunActorExt<'Message, 'v>>>) = toExpression<FunActorExt<'Message, 'v>> f
@@ -78,7 +85,7 @@ module Lifecycle =
     /// <param name="options">List of options used to configure actor creation</param>
     /// <param name="overrides">Functions used to override standard actor lifetime</param>
     let spawnOptOvrd (actorFactory : IActorRefFactory) (name : string) (f : Actor<'Message> -> Cont<'Message, 'Returned>) 
-        (options : SpawnOption list) (overrides : LifecycleOverride) : IActorRef = 
+        (options : SpawnOption list) (overrides : LifecycleOverride<'Message, 'Returned>) : IActorRef = 
         let e = ExpressionExt.ToExpression(fun () -> new FunActorExt<'Message, 'Returned>(f, overrides))
         let props = applySpawnOptions (Props.Create e) options
         actorFactory.ActorOf(props, name)
@@ -92,5 +99,5 @@ module Lifecycle =
     /// <param name="f">Used by actor for handling response for incoming request</param>
     /// <param name="overrides">Functions used to override standard actor lifetime</param>
     let spawnOvrd (actorFactory : IActorRefFactory) (name : string) (f : Actor<'Message> -> Cont<'Message, 'Returned>)
-        (overrides : LifecycleOverride) : IActorRef = 
+        (overrides : LifecycleOverride<'Message, 'Returned>) : IActorRef = 
         spawnOptOvrd actorFactory name f [] overrides
