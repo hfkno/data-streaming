@@ -153,15 +153,16 @@ let folderWatcher path (mailbox:Actor<_>) =
 
     let publisher = spawn mailbox "publisher" <| actorOf publishContent // add superviser here?
     let props = [| publisher :> obj |]
-    //let fileReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
+    let fileReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
 
-    let preRestart = Some(fun (actor:FunActor<'a, 'b>) (exn) (message:obj) (baseFn: (exn * obj -> unit)) -> 
-        //let r = ActorBase.Context // (actor :> ActorBase).Context
-        //let context = actor.Context
-        //context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromSeconds(0.2), context.Self, message)
-        ()
-        )
-    let fileReader = Lifecycle.spawnOptOvrd mailbox "filereader" fileReadFunc [SupervisorStrategy(retrySupervision)] ({Lifecycle.defOvrd with PreRestart=preRestart})
+//  Unable to use functional creation becuse the Context property was hidden
+//    let preRestart = Some(fun (actor:FunActor<'a, 'b>) (exn) (message:obj) (baseFn: (exn * obj -> unit)) -> 
+//        //let r = ActorBase.Context // (actor :> ActorBase).Context
+//        //let context = actor.Context
+//        //context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromSeconds(0.2), context.Self, message)
+//        ()
+//        )
+//    let fileReader = Lifecycle.spawnOptOvrd mailbox "filereader" fileReadFunc [SupervisorStrategy(retrySupervision)] ({Lifecycle.defOvrd with PreRestart=preRestart})
 
     //let fileReader2 = Lifecycle.spawnOvrd
 

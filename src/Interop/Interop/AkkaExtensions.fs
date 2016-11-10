@@ -90,6 +90,24 @@ module Lifecycle =
         let props = applySpawnOptions (Props.Create e) options
         actorFactory.ActorOf(props, name)
 
+
+    /// <summary>
+    /// Spawns an actor using specified actor computation expression, with custom spawn option settings.
+    /// The actor can only be used locally. 
+    /// </summary>
+    /// <param name="actorFactory">Either actor system or parent actor</param>
+    /// <param name="name">Name of spawned child actor</param>
+    /// <param name="f">Used by actor for handling response for incoming request</param>
+    /// <param name="options">List of options used to configure actor creation</param>
+    /// <param name="overrides">Functions used to override standard actor lifetime</param>
+    let spawnOptOvrd2 (actorFactory : IActorRefFactory) (name : string) (f : Actor<'Message> -> Cont<'Message, 'Returned>) 
+        (options : SpawnOption list) (overrides : LifecycleOverride<'Message, 'Returned>) : IActorRef = 
+        let e = ExpressionExt.ToExpression(fun () -> new FunActorExt<'Message, 'Returned>(f, overrides))
+        let props = applySpawnOptions (Props.Create e) options
+        actorFactory.ActorOf (props, name)
+
+
+
     /// <summary>
     /// Spawns an actor using specified actor computation expression.
     /// The actor can only be used locally. 
