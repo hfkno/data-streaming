@@ -52,7 +52,7 @@ open Interop.Lifecycle
 
 do            
     Log.Logger <- LoggerConfiguration()
-                .MinimumLevel.Verbose()
+                .MinimumLevel.Information()
                 .WriteTo.LiterateConsole()
                 .Enrich.FromLogContext() 
                 .CreateLogger();
@@ -60,8 +60,16 @@ do
 let retrySupervision = 
     Strategy.OneForOne 
         ((fun e -> 
-            Log.Error(e, "Opening file...")
-            Directive.Restart), 
+            match e with 
+            | :? System.IO.IOException ->
+                Log.Error(e, "Opening file...")
+                Log.CloseAndFlush()
+                Directive.Restart
+            | _ -> 
+                Log.Error(e, "Unexpected error")
+                Log.CloseAndFlush()
+                Directive.Stop
+            ), 
         retries=10, 
         timeout=TimeSpan.FromSeconds(3.0))
                 
@@ -80,6 +88,7 @@ let fileEventSubscription filter handler path =
                         EnableRaisingEvents = true, 
                         NotifyFilter = (NotifyFilters.FileName ||| NotifyFilters.LastWrite ||| NotifyFilters.LastAccess ||| NotifyFilters.CreationTime ||| NotifyFilters.DirectoryName)
                         )
+
     fsw, fsw.Created 
         |> Observable.map (fun file -> new System.Uri(file.FullPath))
         |> Observable.filter filter
@@ -90,10 +99,16 @@ let fileEventSubscription filter handler path =
 
 type SupplierDetails = 
     { 
-        Id : int
         Name : string
-        ContactName : string
-        ContactTitle : string   
+        OrgNr : string
+        Address : string
+        PostNr : string
+        CountryCode : string
+        Email : string
+        PhoneNr : string
+        MobilePhoneNr : string
+        FaxNr : string
+        ResKontroNr : string
     }
 
 module Amesto =
@@ -105,7 +120,9 @@ module Amesto =
 
 // Producer
 
-type ``Visma Leverandør Data``= CsvProvider<"data\suppliers.csv"> // CSV schemas can be hard coded into scripts...
+[<Literal>]
+let ``Visma Leverandør CSV Schema`` = "Name (string), OrgNr (string), Address (string), PostNr (string), CountryCode (string), Email (string), PhoneNr (string), MobilePhoneNr (string), FaxNr (string), ResKontroNr (string)"
+type ``Visma Leverandør Data``= CsvProvider<Schema=``Visma Leverandør CSV Schema``, HasHeaders = false> // Separators = ";",
 
 let publishContent content = 
     Amesto.WebService.publish content
@@ -114,10 +131,16 @@ let publishRows publisher (uri:Uri) =
     use suppliers = ``Visma Leverandør Data``.Load(uri.LocalPath) 
     for supplier in suppliers.Rows do
         publisher <! 
-              { Id = supplier.SupplierID 
-                Name = supplier.CompanyName
-                ContactName = supplier.ContactName
-                ContactTitle = supplier.ContactTitle }
+              { Name = supplier.Name
+                OrgNr = supplier.OrgNr
+                Address = supplier.Address
+                PostNr = supplier.PostNr
+                CountryCode = supplier.CountryCode
+                Email = supplier.Email
+                PhoneNr = supplier.PhoneNr
+                MobilePhoneNr = supplier.MobilePhoneNr
+                FaxNr = supplier.FaxNr
+                ResKontroNr = supplier.ResKontroNr }
                 
 
 type FileReader(publisher) =
@@ -131,21 +154,13 @@ type FileReader(publisher) =
         | _ -> failwith "unknown format"   
 
     override __.PreRestart(e, message) =
-        let context = FileReader.Context
-        context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromSeconds(0.2), context.Self, message)
-
-
-let fileReadFunc (mailbox:Actor<Uri>) =
-
-    let publisher = spawn mailbox "publisher" <| actorOf publishContent
-
-    let rec loop() = actor {
-        let! uri = mailbox.Receive()
-        Log.Information("Attempting to read file {uri}", uri)
-        uri |> publishRows publisher
-        return! loop()
-    }
-    loop()
+        match e with
+        | :? System.IO.IOException ->
+            let context = FileReader.Context
+            Log.Information("RESTARTING FILE READER")
+            context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromSeconds(0.2), context.Self, message)
+        | _ -> ()
+        
 
 let folderWatcher path (mailbox:Actor<_>) =    
 
