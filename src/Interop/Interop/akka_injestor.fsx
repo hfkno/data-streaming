@@ -128,11 +128,12 @@ module Amesto =
 // 1) CSV filen mangler "By" som bør komme som eget felt
 // 2) Landsdefinisjon hos Amesto virker som en blanding av "N" for norge, og helnavn i andre tilfeller.  Landskoder brukt foreløpig
 // 3) Reskontronr har blitt kartlagt til "SupplierNumber" -- riktig?
+// 4) "CompanyRegistrationNumber" fra Visma tar med landskoder, Amesto hadde ikke disse fra før av, de har blitt tatt inn "as-is"
 
 [<Literal>]
 let amestoServiceAddress = "http://hfk-www02-t.ad.hfk.no/Avantra/Customer/Hordaland/Service2013/actor.asmx?WSDL"
 let supplierRegister = 1
-let largeBinding = new BasicHttpBinding(MaxReceivedMessageSize = 20000000L)
+let largeBinding = new BasicHttpBinding(MaxBufferSize = Int32.MaxValue, MaxReceivedMessageSize = int64(Int32.MaxValue))
 
 type AmestoService = WsdlService<amestoServiceAddress>
 let amesto = new AmestoService.ServiceTypes.ActorServiceSoapClient(largeBinding, new EndpointAddress(amestoServiceAddress))
@@ -140,7 +141,7 @@ let allActors = amesto.GetActors(supplierRegister)
 
 
 let s = amesto.GetActorById(180)
-s
+
 
 for i in 0 .. 2 do
     printfn "%A" (amesto.GetActorById(180 + i))
