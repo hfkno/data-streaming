@@ -14,6 +14,8 @@
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 #r "../../packages/FSharp.Data.TypeProviders/lib/net40/FSharp.Data.TypeProviders.dll"
 #r "System.ServiceModel"
+#r "System.Runtime.Serialization"
+
 #r "../../packages/FSPowerPack.Linq.Community/Lib/net40/FSharp.PowerPack.Linq.dll"
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
@@ -26,6 +28,7 @@
 
 open System
 open System.IO
+open System.ServiceModel
 open Akka
 open Akka.Actor
 open Akka.Configuration
@@ -39,6 +42,7 @@ open Serilog.Configuration
 
 #load "AkkaExtensions.fs"
 open Interop.Lifecycle
+
 
 // TODO:  unit testing...
 //
@@ -120,9 +124,29 @@ module Amesto =
 
 
 
-type AmestoService = WsdlService<"http://hfk-www02-t.ad.hfk.no/Avantra/Customer/Hordaland/Service2013/contract.asmx?WSDL">
-let amesto = AmestoService.GetContractServiceSoap()
+// Avvikslist
+// 1) CSV filen mangler "By" som bør komme som eget felt
+// 2) Landsdefinisjon hos Amesto virker som en blanding av "N" for norge, og helnavn i andre tilfeller.  Landskoder brukt foreløpig
+// 3) Reskontronr har blitt kartlagt til "SupplierNumber" -- riktig?
 
+[<Literal>]
+let amestoServiceAddress = "http://hfk-www02-t.ad.hfk.no/Avantra/Customer/Hordaland/Service2013/actor.asmx?WSDL"
+let supplierRegister = 1
+let largeBinding = new BasicHttpBinding(MaxReceivedMessageSize = 20000000L)
+
+type AmestoService = WsdlService<amestoServiceAddress>
+let amesto = new AmestoService.ServiceTypes.ActorServiceSoapClient(largeBinding, new EndpointAddress(amestoServiceAddress))
+let allActors = amesto.GetActors(supplierRegister)
+
+
+let s = amesto.GetActorById(180)
+s
+
+for i in 0 .. 2 do
+    printfn "%A" (amesto.GetActorById(180 + i))
+
+
+//let amestoSupplier = new AmestoService.ServiceTypes.ac
 
 
 
