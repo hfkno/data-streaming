@@ -52,11 +52,12 @@ open Interop.Lifecycle
 
 do            
     Log.Logger <- LoggerConfiguration()
-                .MinimumLevel.Information()
+                .MinimumLevel.Debug()
                 .WriteTo.LiterateConsole()
                 .Enrich.FromLogContext() 
                 .CreateLogger();
 
+                                
 let retrySupervision = 
     Strategy.OneForOne 
         ((fun e -> 
@@ -64,7 +65,7 @@ let retrySupervision =
             | :? System.IO.IOException -> Directive.Restart
             | _ -> Directive.Stop
             ), 
-        retries=1, 
+        retries=5, 
         timeout=TimeSpan.FromSeconds(3.0))
                 
 let fileIsOpen (uri:Uri) =
@@ -146,15 +147,16 @@ type FileReader(publisher) =
     override x.OnReceive message =
         match message with
         | :? Uri as uri ->
-            Log.Information("Attempting to read file {uri} ({Self})", uri, x.Self)
+            Log.Information("Attempting to read file {uri} ({Uid})", uri, x.Self.Path.Uid)
             uri |> publishRows publisher
-        | _ -> failwith "unknown format"   
+        | _ -> failwith "Unknown message format"   
 
     override x.PreRestart(e, message) =
+        Log.Debug("Restarting file reader ({Uid})", x.Self.Path.ToStringWithUid())
         match e with
-        | :? System.IO.IOException ->
-            let context = FileReader.Context
-            Log.Information("RESTARTING FILE READER")
+        | :? System.IO.IOException ->  
+            Log.Debug("Rescheduling file read command to wait for unlocked file")
+            let context = FileReader.Context            
             context.System.Scheduler.ScheduleTellOnce(TimeSpan.FromSeconds(0.2), context.Self, message)
         | _ -> ()
         
@@ -163,7 +165,7 @@ let folderWatcher path (mailbox:Actor<_>) =
 
     let onlyCsv (uri:Uri) = uri.LocalPath.EndsWith(".csv")
 
-    let publisher = spawn mailbox "publisher" <| actorOf publishContent // add superviser here?
+    let publisher = spawn mailbox "publisher" <| actorOf publishContent
     let props = [| publisher :> obj |]
     let fileReader = mailbox.ActorOf(Props(typedefof<FileReader>, retrySupervision, props), name="filereader" )
     
@@ -175,6 +177,7 @@ let folderWatcher path (mailbox:Actor<_>) =
         eventSubscription.Dispose()
         fsw.Dispose()
 
+    Log.Information("Watching folder '{path}'", path)
     let rec loop () = actor {
         let! msg = mailbox.Receive()
         return! loop()
