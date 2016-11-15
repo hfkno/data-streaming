@@ -44,8 +44,11 @@ NUGET
       System.ComponentModel (>= 4.0.1) - framework: >= netstandard11
     Destructurama.FSharp (1.0.14)
       Serilog (>= 1.4.204)
+    FSharp.Core (4.0.0.1)
     FSharp.Data (2.3.2)
       Zlib.Portable (>= 1.11) - framework: >= netstandard11, portable-net45+sl5+win8, portable-net45+win8, portable-net45+win8+wp8+wpa81
+    FSharp.Data.TypeProviders (5.0.0.2)
+      FSharp.Core (>= 3.1.2.5)
     FsPickler (3.2)
     FSPowerPack.Community (3.0)
       FSPowerPack.Linq.Community

@@ -10,10 +10,14 @@
 #r "../../packages/Akka/lib/net45/Akka.dll"
 #r "../../packages/Akka.FSharp/lib/net45/Akka.FSharp.dll"
 #r "../../packages/Akka.Serialization.Wire/lib/net45/Akka.Serialization.Wire.dll"
+
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
+#r "../../packages/FSharp.Data.TypeProviders/lib/net40/FSharp.Data.TypeProviders.dll"
+#r "System.ServiceModel"
 #r "../../packages/FSPowerPack.Linq.Community/Lib/net40/FSharp.PowerPack.Linq.dll"
 #r "../../packages/System.Collections.Immutable/lib/portable-net45+win8+wp8+wpa81/System.Collections.Immutable.dll"
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
+
 #r "../../packages/Serilog/lib/net46/Serilog.dll"
 #r "../../packages/Serilog.Sinks.Literate/lib/net45/Serilog.Sinks.Literate.dll"
 #r "../../packages/Akka.Logger.Serilog/lib/net45/Akka.Logger.Serilog.dll"
@@ -28,6 +32,7 @@ open Akka.Configuration
 open Akka.FSharp
 
 open FSharp.Data
+open FSharp.Data.TypeProviders
 open Serilog
 open Serilog.Configuration
 
@@ -112,6 +117,14 @@ module Amesto =
     module WebService =
         let publish(details:SupplierDetails) = 
             Log.Information("Publishing {@details}", details)
+
+
+
+type AmestoService = WsdlService<"http://hfk-www02-t.ad.hfk.no/Avantra/Customer/Hordaland/Service2013/contract.asmx?WSDL">
+let amesto = AmestoService.GetContractServiceSoap()
+
+
+
 
 
 
