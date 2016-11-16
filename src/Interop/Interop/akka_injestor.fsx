@@ -29,6 +29,8 @@
 open System
 open System.IO
 open System.ServiceModel
+open System.Linq
+
 open Akka
 open Akka.Actor
 open Akka.Configuration
@@ -110,7 +112,7 @@ type SupplierDetails =
     { 
         Name : string
         OrgNr : string
-        Address : string
+        BillingAddress : string
         PostNr : string
         CountryCode : string
         Email : string
@@ -125,7 +127,7 @@ type SupplierDetails =
 // Producer
 
 [<Literal>]
-let ``Visma Leverandør CSV Schema`` = "Name (string), OrgNr (string), Address (string), PostNr (string), CountryCode (string), \
+let ``Visma Leverandør CSV Schema`` = "Name (string), OrgNr (string), BillingAddress (string), PostNr (string), CountryCode (string), \
                                        Email (string), PhoneNr (string), MobilePhoneNr (string), FaxNr (string), ResKontroNr (string)"
 type ``Visma Leverandør Data``= CsvProvider<Schema=``Visma Leverandør CSV Schema``, Separators = ";", HasHeaders = false>
 
@@ -135,7 +137,7 @@ let publishRows (uri:Uri) (publish : SupplierDetails -> Unit) =
         publish  
               { Name = supplier.Name
                 OrgNr = supplier.OrgNr
-                Address = supplier.Address
+                BillingAddress = supplier.BillingAddress
                 PostNr = supplier.PostNr
                 CountryCode = supplier.CountryCode
                 Email = supplier.Email
@@ -160,13 +162,7 @@ module Amesto =
 let publishContent content = 
     Amesto.WebService.publish content
 
-// Avvikslist
-// 1) CSV filen mangler "By" som bør komme som eget felt
-// 2) Landsdefinisjon hos Amesto virker som en blanding av "N" for norge, og helnavn i andre tilfeller.  Landskoder brukt foreløpig
-// 3) Reskontronr har blitt kartlagt til "SupplierNumber" -- riktig?
-// 4) "CompanyRegistrationNumber" fra Visma tar med landskoder, Amesto hadde ikke disse fra før av, de har blitt tatt inn "as-is"
-// 5) Selskap med make opplysninger men to reskontronr i eksporten skal lagres to ganger i Amesto (med ulike reskontro)
-// 6) Det finns en god del "duplikater" med forskjellige reskontro, disse kommer inn flere ganger...
+
 
 [<Literal>]
 let amestoServiceAddress = "http://hfk-www02-t.ad.hfk.no/Avantra/Customer/Hordaland/Service2013/actor.asmx?WSDL"
@@ -189,7 +185,6 @@ for i in 0 .. 10 do
     printfn "%s" amestoSuppliers.[i].Name
 
 
-//let amestoSupplier = new AmestoService.ServiceTypes.ac
 let testFile = new Uri(__SOURCE_DIRECTORY__ + "\\test\\amest_export_test.csv")
 publishRows testFile (fun d -> printfn "%A" d)
 
@@ -198,12 +193,33 @@ let testOrg = "948334534"
 let only1 = query {
     for supplier in amestoSuppliers do
     where (supplier.Name.StartsWith("C")) // (supplier.CompanyRegistrationNumber.EndsWith(testOrg))
-    select (supplier.Name, supplier.CompanyRegistrationNumber)
+    select (supplier.Name, supplier.CompanyRegistrationNumber, supplier.ZipCode)
 //    exactlyOne
 }
 
-for s, c in only1 do
-    printfn "%O %O" s c
+
+
+let querrr = query {
+    for supplier in amestoSuppliers do
+    where (supplier.Name.Contains("OS K")) // .StartsWith("E")) // (supplier.CompanyRegistrationNumber.EndsWith(testOrg))
+    select (supplier.Name, supplier.CompanyRegistrationNumber, supplier.ZipCode)
+    //exactlyOne
+}
+for s, c, n in querrr do
+    printfn "%-50O %-12O %-8O" s c n
+
+
+let duplicatesInSameZip = query {
+    for supplier in amestoSuppliers do
+    groupBy (supplier.CompanyRegistrationNumber, supplier.ZipCode) into g
+    where (not (g.Key |> fst |> String.IsNullOrEmpty) && g.Count() > 1)
+}
+
+
+for g in duplicatesInSameZip do
+    for supplier in g do
+        printfn "%-50O %-12O %-8O %O" supplier.Name supplier.CompanyRegistrationNumber supplier.ZipCode supplier.PostalAddress
+
 
 //  ISSUES: 
 //      Companies without "AS" - how to match?
