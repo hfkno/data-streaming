@@ -36,6 +36,8 @@ open Akka.FSharp
 
 open FSharp.Data
 open FSharp.Data.TypeProviders
+open FSharp.Linq
+
 open Serilog
 open Serilog.Configuration
 
@@ -101,7 +103,8 @@ let fileEventSubscription filter handler path =
 
 
 
-// Consumer
+
+// Contract
 
 type SupplierDetails = 
     { 
@@ -117,40 +120,6 @@ type SupplierDetails =
         ResKontroNr : string
     }
 
-module Amesto =
-    module WebService =
-        let publish(details:SupplierDetails) = 
-            Log.Information("Publishing {@details}", details)
-
-
-
-// Avvikslist
-// 1) CSV filen mangler "By" som bør komme som eget felt
-// 2) Landsdefinisjon hos Amesto virker som en blanding av "N" for norge, og helnavn i andre tilfeller.  Landskoder brukt foreløpig
-// 3) Reskontronr har blitt kartlagt til "SupplierNumber" -- riktig?
-// 4) "CompanyRegistrationNumber" fra Visma tar med landskoder, Amesto hadde ikke disse fra før av, de har blitt tatt inn "as-is"
-
-[<Literal>]
-let amestoServiceAddress = "http://hfk-www02-t.ad.hfk.no/Avantra/Customer/Hordaland/Service2013/actor.asmx?WSDL"
-let supplierRegister = 1
-let largeBinding = new BasicHttpBinding(MaxBufferSize = Int32.MaxValue, MaxReceivedMessageSize = int64(Int32.MaxValue))
-
-type AmestoService = WsdlService<amestoServiceAddress>
-let amesto = new AmestoService.ServiceTypes.ActorServiceSoapClient(largeBinding, new EndpointAddress(amestoServiceAddress))
-let allActors = amesto.GetActors(supplierRegister)
-
-
-let s = amesto.GetActorById(180)
-
-
-for i in 0 .. 2 do
-    printfn "%A" (amesto.GetActorById(180 + i))
-
-
-//let amestoSupplier = new AmestoService.ServiceTypes.ac
-
-
-
 
 
 // Producer
@@ -160,13 +129,10 @@ let ``Visma Leverandør CSV Schema`` = "Name (string), OrgNr (string), Address (
                                        Email (string), PhoneNr (string), MobilePhoneNr (string), FaxNr (string), ResKontroNr (string)"
 type ``Visma Leverandør Data``= CsvProvider<Schema=``Visma Leverandør CSV Schema``, Separators = ";", HasHeaders = false>
 
-let publishContent content = 
-    Amesto.WebService.publish content
-
-let publishRows publisher (uri:Uri) =
+let publishRows (uri:Uri) (publish : SupplierDetails -> Unit) =
     use suppliers = ``Visma Leverandør Data``.Load(uri.LocalPath) 
     for supplier in suppliers.Rows do
-        publisher <! 
+        publish  
               { Name = supplier.Name
                 OrgNr = supplier.OrgNr
                 Address = supplier.Address
@@ -179,6 +145,102 @@ let publishRows publisher (uri:Uri) =
                 ResKontroNr = supplier.ResKontroNr }
                 
 
+
+
+
+
+// Consumer
+
+module Amesto =
+    module WebService =
+        let publish(details:SupplierDetails) = 
+            Log.Information("Publishing {@details}", details)
+
+
+let publishContent content = 
+    Amesto.WebService.publish content
+
+// Avvikslist
+// 1) CSV filen mangler "By" som bør komme som eget felt
+// 2) Landsdefinisjon hos Amesto virker som en blanding av "N" for norge, og helnavn i andre tilfeller.  Landskoder brukt foreløpig
+// 3) Reskontronr har blitt kartlagt til "SupplierNumber" -- riktig?
+// 4) "CompanyRegistrationNumber" fra Visma tar med landskoder, Amesto hadde ikke disse fra før av, de har blitt tatt inn "as-is"
+// 5) Selskap med make opplysninger men to reskontronr i eksporten skal lagres to ganger i Amesto (med ulike reskontro)
+// 6) Det finns en god del "duplikater" med forskjellige reskontro, disse kommer inn flere ganger...
+
+[<Literal>]
+let amestoServiceAddress = "http://hfk-www02-t.ad.hfk.no/Avantra/Customer/Hordaland/Service2013/actor.asmx?WSDL"
+let supplierRegister = 1
+let largeBinding = new BasicHttpBinding(MaxBufferSize = Int32.MaxValue, MaxReceivedMessageSize = int64(Int32.MaxValue))
+
+type AmestoService = WsdlService<amestoServiceAddress>
+let amesto = new AmestoService.ServiceTypes.ActorServiceSoapClient(largeBinding, new EndpointAddress(amestoServiceAddress))
+let amestoSuppliers = amesto.GetActors(supplierRegister)
+
+amestoSuppliers |> Array.length
+
+//let s = amesto.GetActorById(180)
+//
+//for i in 0 .. 2 do
+//    printfn "%A" (amesto.GetActorById(180 + i))
+
+
+for i in 0 .. 10 do
+    printfn "%s" amestoSuppliers.[i].Name
+
+
+//let amestoSupplier = new AmestoService.ServiceTypes.ac
+let testFile = new Uri(__SOURCE_DIRECTORY__ + "\\test\\amest_export_test.csv")
+publishRows testFile (fun d -> printfn "%A" d)
+
+let testOrg = "948334534"
+
+let only1 = query {
+    for supplier in amestoSuppliers do
+    where (supplier.Name.StartsWith("C")) // (supplier.CompanyRegistrationNumber.EndsWith(testOrg))
+    select (supplier.Name, supplier.CompanyRegistrationNumber)
+//    exactlyOne
+}
+
+for s, c in only1 do
+    printfn "%O %O" s c
+
+//  ISSUES: 
+//      Companies without "AS" - how to match?
+            // Example
+//      Companies with inconsistent naming 
+            // Example (CLUE NORGE A/S) vs CLUE NORGE ASA
+//      Companies with multiple addresse, same orgNr, and a different orgNr in Amesto (treat them as different?  Do this whole op by orgnumber to ensure valiid matches?)
+            // Example: CRAMO AS - this should be uploaded twice...
+//      Companies with mulitple addresses and a matching orgnr 
+            // Example Coop Hordaland SA
+//      Companies with multiple reskontro and multiple orgnr matches
+            // Example Clas Ohlson AS            
+//      Companies with multiple entries in Amesto, but only one in the import
+            // Example CASIO SCANDANAVIA AS
+//      Companies with multiple entries in import but only one in Amesto (w same orgnr)
+            // Example CAPELLEN DAMM A
+//      Companies with orgnrs that are poorly formatted
+            // Example CADMUM AB 556341-7541     
+//      Names with norwegian (gotta check)
+//      Companies with multiple names and same orgnr
+            // Example: CERALIA AS 910629085
+            //          CEREALIA AS 910629085
+
+
+// Rough draft:  
+
+//       Check on orgnr with fallback of namereg, using orgnr groups (and name subgroups) to handle duplicate entries
+//       Things that don`t get matched get saved, everything else is an update
+//       Check orgnrs with "endswith" and names with "startswith" (maybe?  too risky??)
+//       Second run shouldn't have too much to say...
+//
+//       Basically, grou by orgnr, then by name, overwrite, and then "add" the rest
+//       Ensure that multiple entries in Amesto all get the information...
+
+
+// Coordination
+
 type FileReader(publisher) =
     inherit Actor() 
 
@@ -186,7 +248,7 @@ type FileReader(publisher) =
         match message with
         | :? Uri as uri ->
             Log.Information("Attempting to read file {uri} ({Uid})", uri, x.Self.Path.Uid)
-            uri |> publishRows publisher
+            publishRows uri (fun details -> publisher <! details)
         | _ -> failwith "Unknown message format"   
 
     override x.PreRestart(e, message) =
