@@ -30,6 +30,7 @@ open System
 open System.IO
 open System.ServiceModel
 open System.Linq
+open System.Text.RegularExpressions
 
 open Akka
 open Akka.Actor
@@ -173,52 +174,66 @@ type AmestoService = WsdlService<amestoServiceAddress>
 let amesto = new AmestoService.ServiceTypes.ActorServiceSoapClient(largeBinding, new EndpointAddress(amestoServiceAddress))
 let amestoSuppliers = amesto.GetActors(supplierRegister)
 
-amestoSuppliers |> Array.length
-
-//let s = amesto.GetActorById(180)
-//
-//for i in 0 .. 2 do
-//    printfn "%A" (amesto.GetActorById(180 + i))
 
 
-for i in 0 .. 10 do
-    printfn "%s" amestoSuppliers.[i].Name
+let cleanPostnr (nr:string) = sprintf "%04i" (Convert.ToInt32(nr))
+let cleanName (name:string) = Regex.Replace(name, " (A/S|AS|ASA|SA|A\.S\.)$" , "")
+let hasId (supplier:AmestoService.ServiceTypes.www.avantra.se.atc.service._2013.ActorD) = 
+    not <| String.IsNullOrWhiteSpace(supplier.CompanyRegistrationNumber)
+
+
+
 
 
 let testFile = new Uri(__SOURCE_DIRECTORY__ + "\\test\\amest_export_test.csv")
-publishRows testFile (fun d -> printfn "%A" d)
+//publishRows testFile (fun d -> printfn "%A" d)
 
-let testOrg = "948334534"
 
-let only1 = query {
-    for supplier in amestoSuppliers do
-    where (supplier.Name.StartsWith("C")) // (supplier.CompanyRegistrationNumber.EndsWith(testOrg))
-    select (supplier.Name, supplier.CompanyRegistrationNumber, supplier.ZipCode)
-//    exactlyOne
+let vismaSuppliers = ``Visma Leverandør Data``.Load(testFile.LocalPath)
+let vismaSuppliersGrouped = query {
+    for supplier in vismaSuppliers.Rows do
+    groupBy (supplier.OrgNr)
 }
 
-
-
-let querrr = query {
+let amestoSuppliersGrouped = query {
     for supplier in amestoSuppliers do
-    where (supplier.Name.Contains("OS K")) // .StartsWith("E")) // (supplier.CompanyRegistrationNumber.EndsWith(testOrg))
-    select (supplier.Name, supplier.CompanyRegistrationNumber, supplier.ZipCode)
-    //exactlyOne
-}
-for s, c, n in querrr do
-    printfn "%-50O %-12O %-8O" s c n
-
-
-let duplicatesInSameZip = query {
-    for supplier in amestoSuppliers do
-    groupBy (supplier.CompanyRegistrationNumber, supplier.ZipCode) into g
-    where (not (g.Key |> fst |> String.IsNullOrEmpty) && g.Count() > 1)
+    where (supplier |> hasId)
+    groupBy (supplier.CompanyRegistrationNumber)
 }
 
+for vismaSupplierGroup in (vismaSuppliersGrouped.Take(5)) do
+    let existingSuppliers = query {
+        for amestoSupplierGroup in amestoSuppliersGrouped do
+        where (amestoSupplierGroup.Key = vismaSupplierGroup.Key)
+        select (amestoSupplierGroup.ToArray())
+    }
+    
+    let uploadSuppliers = vismaSupplierGroup.ToArray()
+    let existing = existingSuppliers.ToArray() 
 
-for g in duplicatesInSameZip do
-    for supplier in g do
-        printfn "%-50O %-12O %-8O %O" supplier.Name supplier.CompanyRegistrationNumber supplier.ZipCode supplier.PostalAddress
+    for i in 0 .. (uploadSuppliers.Length - 1) do
+        Log.Information("Reading upload nr {i} from len {Length}", i, uploadSuppliers.Length)
+        let vismaSupp = uploadSuppliers.[i]
+
+        if i < existing.Length then
+            let amestoSupp = existing.[0].[i]
+            if ((cleanPostnr amestoSupp.ZipCode) = (cleanPostnr vismaSupp.PostNr)) && ((cleanName amestoSupp.Name) = (cleanName vismaSupp.Name)) then
+                Log.Information("Updating supplier '{Id}'", amestoSupp.SupplierNumber)
+                amesto.SaveActorById((amestoSupp.Id.Value), "integration:true", vismaSupp.Name, vismaSupp.OrgNr, amestoSupp.SupplierNumber, amestoSupp.VisitAddress, vismaSupp.BillingAddress, (cleanPostnr vismaSupp.PostNr), amestoSupp.City, amestoSupp.Region, vismaSupp.CountryCode, vismaSupp.PhoneNr, vismaSupp.MobilePhoneNr, vismaSupp.FaxNr, vismaSupp.Email, amestoSupp.Url, amestoSupp.PlusGiro, amestoSupp.BankGiro, null) |> ignore
+            else
+                Log.Information("Creating new supplier '{Id}'", vismaSupp.ResKontroNr)
+                amesto.SaveActorByExternalKey(vismaSupp.ResKontroNr,  "integration:true", vismaSupp.Name, vismaSupp.OrgNr, vismaSupp.ResKontroNr, vismaSupp.BillingAddress, vismaSupp.BillingAddress, (cleanPostnr vismaSupp.PostNr), "", "", vismaSupp.CountryCode, vismaSupp.PhoneNr, vismaSupp.MobilePhoneNr, vismaSupp.FaxNr, vismaSupp.Email, "", "", "", null) |> ignore
+        else
+            Log.Information("Creating new supplier '{Id}'", vismaSupp.ResKontroNr)
+            amesto.SaveActorByExternalKey(vismaSupp.ResKontroNr,  "integration:true", vismaSupp.Name, vismaSupp.OrgNr, vismaSupp.ResKontroNr, vismaSupp.BillingAddress, vismaSupp.BillingAddress, (cleanPostnr vismaSupp.PostNr), "", "", vismaSupp.CountryCode, vismaSupp.PhoneNr, vismaSupp.MobilePhoneNr, vismaSupp.FaxNr, vismaSupp.Email, "", "", "", null) |> ignore
+    ()
+
+//    for supplier in g do
+//        printfn "%-50O %-12O %-8O %O" supplier.Name supplier.CompanyRegistrationNumber supplier.ZipCode supplier.PostalAddress
+
+
+
+
 
 
 //  ISSUES: 
@@ -244,18 +259,8 @@ for g in duplicatesInSameZip do
             //          CEREALIA AS 910629085
 
 
-// Rough draft:  
 
-//       Check on orgnr with fallback of namereg, using orgnr groups (and name subgroups) to handle duplicate entries
-//       Things that don`t get matched get saved, everything else is an update
-//       Check orgnrs with "endswith" and names with "startswith" (maybe?  too risky??)
-//       Second run shouldn't have too much to say...
-//
-//       Basically, grou by orgnr, then by name, overwrite, and then "add" the rest
-//       Ensure that multiple entries in Amesto all get the information...
-
-
-// Coordination
+// Orchestration
 
 type FileReader(publisher) =
     inherit Actor() 
