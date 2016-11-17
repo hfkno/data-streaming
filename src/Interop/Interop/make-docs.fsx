@@ -22,9 +22,10 @@ let processScriptAsHtml () =
   let output = relative "output/ad_visma.html"
   let template = relative "template-file.html"
   Literate.ProcessScriptFile(script, template, output)
+  printfn "Documentation generated"
 
 
-processScriptAsHtml()
+let makeDocs () = processScriptAsHtml ()
 
 
 //.
