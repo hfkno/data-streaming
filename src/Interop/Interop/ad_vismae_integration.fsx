@@ -50,6 +50,25 @@ open System.DirectoryServices.AccountManagement
 
 
 
+
+// We can list users... need to filter for "users" and not just "eeeeeverything" - this is through the new API and works kinda nicely
+let theAction() =
+    use domainContext = new PrincipalContext(ContextType.Domain) //, "ad.hfk.no")
+    //use user = UserPrincipal.FindByIdentity()
+    use group = GroupPrincipal.FindByIdentity(domainContext, IdentityType.SamAccountName, "Domain Users")
+    for u in group.GetMembers(false) do
+        use user = (u :?> UserPrincipal)
+        printfn "%s %s %O" (user.DistinguishedName) user.SamAccountName user.UserPrincipalName //(user.AccountExpirationDate.HasValue)
+
+theAction()
+
+
+
+
+
+
+
+// This one seems to only be getting the goups, not he members...  Perhaps a user filter on the PrincipalSearcher?
 let directActiono() =
     use ctx = new PrincipalContext(ContextType.Domain, "ad.hfk.no") //, "OU=HFK");
     use group = new GroupPrincipal(ctx)
@@ -58,7 +77,7 @@ let directActiono() =
     for g in search.FindAll() do
         use g = (g :?> GroupPrincipal)
         use user = g /// (u :?> UserPrincipal)
-        printfn "%s || %s" user.Name user.UserPrincipalName
+        printfn "%s || %s" user.Name user.DistinguishedName
 
 directActiono()
 
@@ -77,16 +96,17 @@ directAction()
 
 
 
-// We can list users... need to filter for "users" and not just "eeeeeverything" - this is through ther
-let theAction() =
-    use domainContext = new PrincipalContext(ContextType.Domain) //, "ad.hfk.no")
-    //use user = UserPrincipal.FindByIdentity()
-    use group = GroupPrincipal.FindByIdentity(domainContext, IdentityType.SamAccountName, "Domain Users")
-    for u in group.GetMembers(false) do
-        use user = (u :?> UserPrincipal)
-        printfn "%s %s %O" (user.DistinguishedName) user.SamAccountName user.UserPrincipalName //(user.AccountExpirationDate.HasValue)
 
-theAction()
+// Syntax for the findbyident search - not working
+let directActionoo() =
+    use ctx = new PrincipalContext(ContextType.Domain, "ad.hfk.no") //, "OU=HFK");
+    use user = UserPrincipal.FindByIdentity(ctx, "cn=Aaron Winston Comyn")
+    printfn "%s || %s" user.Name user.UserPrincipalName
+
+directActionoo()
+
+
+
 
 
 
