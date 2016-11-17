@@ -39,20 +39,23 @@
   </PropertyGroup>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
+    <Compile Include="AssemblyInfo.fs" />
     <None Include="docs\Overall_Plan.md">
       <Link>Overall_Plan.md</Link>
     </None>
     <None Include="EIP.md" />
-    <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="AkkaExtensions.fs" />
-    <Compile Include="kafka-interop.fsx" />
+    <None Include="template-file.html" />
     <None Include="eip.fsx" />
-    <None Include="akka_injestor.fsx" />
     <None Include="packages.config" />
     <None Include="docker-operations.fsx" />
-    <None Include="swagger.fsx" />
+    <Compile Include="AkkaExtensions.fs" />
     <None Include="akka_basics.fsx" />
     <None Include="bootcamp_ch_1.fsx" />
+    <None Include="swagger.fsx" />
+    <Compile Include="kafka-interop.fsx" />
+    <None Include="vismae_amestoksv_integration.fsx" />
+    <None Include="ad_vismae_integration.fsx" />
+    <None Include="make-docs.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Akka.DI.Core">

@@ -8,6 +8,7 @@ nuget Akka.TestKit.NUnit3
 nuget Akka.Logger.Serilog
 nuget FSharp.Data
 nuget FSharp.Data.TypeProviders
+nuget FSharp.Formatting
 nuget FsPickler
 nuget FsPowerPack.Community
 nuget FsPowerPack.Core.Community
