@@ -176,7 +176,11 @@ let amestoSuppliers = amesto.GetActors(supplierRegister)
 
 
 
-let cleanPostnr (nr:string) = sprintf "%04i" (Convert.ToInt32(nr))
+let cleanPostnr (nr:string) = 
+    if String.IsNullOrWhiteSpace(nr) then
+        "0000" 
+    else
+        sprintf "%04i" (Convert.ToInt32(nr))
 let cleanName (name:string) = Regex.Replace(name, " (A/S|AS|ASA|SA|A\.S\.)$" , "")
 let hasId (supplier:AmestoService.ServiceTypes.www.avantra.se.atc.service._2013.ActorD) = 
     not <| String.IsNullOrWhiteSpace(supplier.CompanyRegistrationNumber)
@@ -201,7 +205,12 @@ let amestoSuppliersGrouped = query {
     groupBy (supplier.CompanyRegistrationNumber)
 }
 
-for vismaSupplierGroup in (vismaSuppliersGrouped.Take(5)) do
+
+// Note: all this logic may be 1,000,000 times easier to write when/if the "ExternalKey" can be used for unique retrieval...
+
+// TODO: match on external key...
+
+for vismaSupplierGroup in (vismaSuppliersGrouped.Take(225)) do
     let existingSuppliers = query {
         for amestoSupplierGroup in amestoSuppliersGrouped do
         where (amestoSupplierGroup.Key = vismaSupplierGroup.Key)
