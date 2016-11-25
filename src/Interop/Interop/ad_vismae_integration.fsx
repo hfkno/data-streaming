@@ -49,6 +49,44 @@ open System.DirectoryServices.AccountManagement
 
 
 
+//module ActiveDirectory =
+
+
+
+// We can list users... need to filter for "users" and not just "eeeeeverything" - this is through the new API and works kinda nicely
+let theActio() =
+    use domainContext = new PrincipalContext(ContextType.Domain) //, "ad.hfk.no")
+
+    use group = GroupPrincipal.FindByIdentity(domainContext, IdentityType.SamAccountName, "Domain Users")
+    let mutable i = 0
+    for u in group.GetMembers(false) do
+        use user = (u :?> UserPrincipal)
+        i <- i + 1
+        printfn "%i %s %s %O %O" i (user.DistinguishedName) user.SamAccountName user.UserPrincipalName user.StructuralObjectClass //(user.AccountExpirationDate.HasValue)
+
+theActio()
+
+
+
+// Direct search, getting an interesting number of results (3000)
+let listOrganizationalUnits () =
+    let startingPoint = new DirectoryEntry("LDAP://OU=HFK,DC=ad,DC=hfk,DC=no")
+    let searcher = new DirectorySearcher(startingPoint)
+    searcher.Filter = "(&(objectCategory=person)(objectClass=user))" |> ignore
+    searcher.PageSize <- 500 //|> ignore
+    searcher.SizeLimit <- 0 //|> ignore
+
+    let mutable i = 0
+    for res in searcher.FindAll() do
+        i <- i + 1
+        printfn "%i %O" i res.Path
+    ()
+listOrganizationalUnits()
+
+
+
+
+
 
 
 // We can list users... need to filter for "users" and not just "eeeeeverything" - this is through the new API and works kinda nicely
@@ -56,9 +94,11 @@ let theAction() =
     use domainContext = new PrincipalContext(ContextType.Domain) //, "ad.hfk.no")
     //use user = UserPrincipal.FindByIdentity()
     use group = GroupPrincipal.FindByIdentity(domainContext, IdentityType.SamAccountName, "Domain Users")
+    let mutable i = 0
     for u in group.GetMembers(false) do
         use user = (u :?> UserPrincipal)
-        printfn "%s %s %O" (user.DistinguishedName) user.SamAccountName user.UserPrincipalName //(user.AccountExpirationDate.HasValue)
+        i <- i + 1
+        printfn "%i %s %s %O %O" i (user.DistinguishedName) user.SamAccountName user.UserPrincipalName user.StructuralObjectClass //(user.AccountExpirationDate.HasValue)
 
 theAction()
 
@@ -88,8 +128,10 @@ directActiono()
 let directAction() =
     use searcher = new DirectorySearcher()
     searcher.Filter = "(&(objectClass=user))" |> ignore
+    let mutable i = 0
     for sr in searcher.FindAll() do
-        printfn "%O" sr.Properties.["manager"]
+        i <- i + 1
+        printfn "%i %O" i sr.Properties.["manager"]
 
 directAction()
 
