@@ -28,4 +28,5 @@ let processScriptAsHtml () =
 let makeDocs () = processScriptAsHtml ()
 
 
+makeDocs()
 //.

@@ -16,10 +16,7 @@
 Initial connection to LDAP for user retrieval
 *)
 
-(*** include: ldap-connect ***)
-
-
-
+(*** include: list-users ***)
 
 (** 
 ### Implementation
@@ -31,36 +28,45 @@ Active Directory is searched using the managed API
 (*** include: ad-operations ***)
 
 
-
 (*** hide ***)
 
 #r "System.DirectoryServices"
 #r "System.DirectoryServices.AccountManagement"
+#r "System.Linq"
 open System.DirectoryServices
 open System.DirectoryServices.AccountManagement
-
-
+open System.Linq
 
 
 (*** define: ad-operations ***)
 
+/// Active Directory operations and management
 module ActiveDirectory =
 
+    /// AD User account information
     type User = {
         Name : string
         Account : string
+        Status : bool
+        Status2 : bool
     }
 
+    /// Yields all domain users
     let users () =
         seq {
-            use ctx = new PrincipalContext(ContextType.Domain, "ad.hfk.no", "OU=HFK,DC=ad,DC=hfk,DC=no")
-            use qbeUser = new UserPrincipal(ctx)
-            use searcher = new PrincipalSearcher(qbeUser)
-            for u in searcher.FindAll() do
-                let ru = { Name = u.DisplayName; Account = u.SamAccountName }
-                yield ru 
+            use context = new PrincipalContext(ContextType.Domain, "ad.hfk.no", "OU=HFK,DC=ad,DC=hfk,DC=no")
+            use userSearch = new UserPrincipal(context)
+            use search = new PrincipalSearcher(userSearch)
+            for principal in search.FindAll() do
+                let user = (principal :?> UserPrincipal)
+                yield { Name = user.DisplayName
+                        Account = user.SamAccountName
+                        Status = if user.Enabled.HasValue then user.Enabled.Value else true
+                        Status2 = (not <| user.AccountExpirationDate.HasValue)
+                      }
         }
 
+(*** hide ***)
     // Search examples
     //
     //
@@ -104,49 +110,35 @@ module ActiveDirectory =
     //        printfn "%i %O" i res.Path
 
 
-(*** hide ***)
 
+(*** define: list-users ***)
+
+// Get all users
 let users = ActiveDirectory.users() |> Seq.toList
-users |> Seq.length
+
+// Print all users
 for u in users do printfn "%A\r\n" u
 
 
-
-
- //use user = UserPrincipal.FindByIdentity(domainContext, IdentityType.Name, "A*")
-    
-//    use u = new UserPrincipal(domainContext);
-//    use s = new PrincipalSearcher(u);
-//    s.QueryFilter = (u :> Principal) |> ignore
-//
-//    for p in s.FindAll() do
-//        printfn "%A" p.
-
-//    use user = new UserPrincipal(domainContext)
-//    user.GivenName = "Aaron" |> ignore
-//
-//    use searcher = new PrincipalSearcher(user)
-//    searcher.QueryFilter = (user :> Principal) |> ignore
-//
-//    for res in searcher.FindAll() do 
-//        printfn "%O" res
+let dis = query { 
+            for d in users do
+            where (not <| d.Status2)
+            select d } |> Seq.toList
+dis
 
 
 
 
 
-/// This is function that takes three ints
-/// Those ints get added together...
-let funcWithInfo a b c =
-    a + b + c
 
-
-(*** define: ldap-connect ***)
-let helloWorld() = 
-    funcWithInfo 1 2 3 |> ignore
-    // Visible comments
-    // Raw access to source code online
-    printfn "Hello world!"
+// Mock webservice
+// Get user lists
+// Compare
+// Synch diffs
+    // Use active patterns to govern the update/change/disablement...
+// Scheduling
+// Health reporting
+// etc
 
 
 
