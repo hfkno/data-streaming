@@ -1,31 +1,31 @@
 ﻿
 (**
-# Active Directoy -> Visma Enterprise Integration
+Active Directoy -> Visma Enterprise Integration
+===============================================
 
-## Integration overview
 
-  * Retreive users from Visma Enterprise
+Integration overview
+====================
+
   * Retreive users from Active Directory
+  * Retreive users from Visma Enterprise
   * Synch changes from active directory with Visma user data
   * Push user changes to Visma Enterprise through their user management webservice
-*)
 
-
-(** 
-## Integration details
+Integration details
+-------------------
 Initial connection to LDAP for user retrieval
 *)
-
 (*** include: list-users ***)
 
-(** 
-### Implementation
-
+(**
+Implementation
+--------------
+### Active Directory
 Active Directory is searched using the managed API
-
 *)
-
 (*** include: ad-operations ***)
+
 
 
 (*** hide ***)
@@ -33,6 +33,7 @@ Active Directory is searched using the managed API
 #r "System.DirectoryServices"
 #r "System.DirectoryServices.AccountManagement"
 #r "System.Linq"
+open System
 open System.DirectoryServices
 open System.DirectoryServices.AccountManagement
 open System.Linq
@@ -47,24 +48,37 @@ module ActiveDirectory =
     type User = {
         Name : string
         Account : string
-        Status : bool
-        Status2 : bool
+        IsActive : bool
+        Other : string
     }
 
-    /// Yields all domain users
-    let users () =
+    /// Dtermines if a user account is active or not at the current moment
+    let private isActive (user : UserPrincipal)  = 
+        not <| (user.AccountExpirationDate.HasValue && user.AccountExpirationDate.Value < DateTime.Now)
+
+    /// Yields domain users that match the provided pattern
+    let private findUsersMatching (pattern) =
         seq {
             use context = new PrincipalContext(ContextType.Domain, "ad.hfk.no", "OU=HFK,DC=ad,DC=hfk,DC=no")
             use userSearch = new UserPrincipal(context)
+            userSearch.GivenName <- pattern
             use search = new PrincipalSearcher(userSearch)
+
             for principal in search.FindAll() do
                 let user = (principal :?> UserPrincipal)
                 yield { Name = user.DisplayName
                         Account = user.SamAccountName
-                        Status = if user.Enabled.HasValue then user.Enabled.Value else true
-                        Status2 = (not <| user.AccountExpirationDate.HasValue)
+                        IsActive = user |> isActive
+                        Other = user.AccountExpirationDate.ToString()
                       }
         }
+
+    /// Yields all users
+    let users () = findUsersMatching "*"
+
+    /// Yields users matching the provided name pattern
+    let usersMatching name = findUsersMatching name
+
 
 (*** hide ***)
     // Search examples
@@ -111,6 +125,16 @@ module ActiveDirectory =
 
 
 
+
+
+
+(*
+
+*)
+
+
+
+
 (*** define: list-users ***)
 
 // Get all users
@@ -122,7 +146,7 @@ for u in users do printfn "%A\r\n" u
 
 let dis = query { 
             for d in users do
-            where (not <| d.Status2)
+            where (not <| d.IsActive)
             select d } |> Seq.toList
 dis
 

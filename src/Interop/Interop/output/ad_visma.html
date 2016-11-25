@@ -28,30 +28,73 @@
         <div class="span1"></div>
         <div class="span10" id="main">
           <h1>Active Directoy -&gt; Visma Enterprise Integration</h1>
-<h2>Integration overview</h2>
+<h1>Integration overview</h1>
 <ul>
-<li>Retreive users from Visma Enterprise</li>
 <li>Retreive users from Active Directory</li>
+<li>Retreive users from Visma Enterprise</li>
 <li>Synch changes from active directory with Visma user data</li>
 <li>Push user changes to Visma Enterprise through their user management webservice</li>
 </ul>
 <h2>Integration details</h2>
 <p>Initial connection to LDAP for user retrieval</p>
-<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
-<span class="l">2: </span>
-<span class="l">3: </span>
-<span class="l">4: </span>
-<span class="l">5: </span>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+<span class="l">13: </span>
+<span class="l">14: </span>
+<span class="l">15: </span>
+<span class="l">16: </span>
+<span class="l">17: </span>
+<span class="l">18: </span>
+<span class="l">19: </span>
+<span class="l">20: </span>
+<span class="l">21: </span>
+<span class="l">22: </span>
+<span class="l">23: </span>
+<span class="l">24: </span>
+<span class="l">25: </span>
+<span class="l">26: </span>
 </pre></td>
 <td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="c">// Get all users</span>
-<span class="k">let</span> <span onmouseout="hideTip(event, 'fs24', 33)" onmouseover="showTip(event, 'fs24', 33)" class="i">users</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs25', 34)" onmouseover="showTip(event, 'fs25', 34)" class="t">ActiveDirectory</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs26', 35)" onmouseover="showTip(event, 'fs26', 35)" class="f">users</span>() <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs27', 36)" onmouseover="showTip(event, 'fs27', 36)" class="t">Seq</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs28', 37)" onmouseover="showTip(event, 'fs28', 37)" class="f">toList</span>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs41', 68)" onmouseover="showTip(event, 'fs41', 68)" class="i">users</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs42', 69)" onmouseover="showTip(event, 'fs42', 69)" class="t">ActiveDirectory</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs43', 70)" onmouseover="showTip(event, 'fs43', 70)" class="f">users</span>() <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs44', 71)" onmouseover="showTip(event, 'fs44', 71)" class="t">Seq</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs45', 72)" onmouseover="showTip(event, 'fs45', 72)" class="f">toList</span>
 
 <span class="c">// Print all users</span>
-<span class="k">for</span> <span onmouseout="hideTip(event, 'fs29', 38)" onmouseover="showTip(event, 'fs29', 38)" class="i">u</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs24', 39)" onmouseover="showTip(event, 'fs24', 39)" class="i">users</span> <span class="k">do</span> <span onmouseout="hideTip(event, 'fs30', 40)" onmouseover="showTip(event, 'fs30', 40)" class="f">printfn</span> <span class="s">&quot;</span><span class="pf">%A</span><span class="s"></span><span class="e">\r</span><span class="s"></span><span class="e">\n</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs29', 41)" onmouseover="showTip(event, 'fs29', 41)" class="i">u</span>
+<span class="k">for</span> <span onmouseout="hideTip(event, 'fs46', 73)" onmouseover="showTip(event, 'fs46', 73)" class="i">u</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs41', 74)" onmouseover="showTip(event, 'fs41', 74)" class="i">users</span> <span class="k">do</span> <span onmouseout="hideTip(event, 'fs47', 75)" onmouseover="showTip(event, 'fs47', 75)" class="f">printfn</span> <span class="s">&quot;</span><span class="pf">%A</span><span class="s"></span><span class="e">\r</span><span class="s"></span><span class="e">\n</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs46', 76)" onmouseover="showTip(event, 'fs46', 76)" class="i">u</span>
+
+
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs48', 77)" onmouseover="showTip(event, 'fs48', 77)" class="i">dis</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs49', 78)" onmouseover="showTip(event, 'fs49', 78)" class="i">query</span> { 
+            <span class="k">for</span> <span onmouseout="hideTip(event, 'fs50', 79)" onmouseover="showTip(event, 'fs50', 79)" class="i">d</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs41', 80)" onmouseover="showTip(event, 'fs41', 80)" class="i">users</span> <span class="k">do</span>
+            <span onmouseout="hideTip(event, 'fs51', 81)" onmouseover="showTip(event, 'fs51', 81)" class="k">where</span> (<span onmouseout="hideTip(event, 'fs16', 82)" onmouseover="showTip(event, 'fs16', 82)" class="f">not</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs50', 83)" onmouseover="showTip(event, 'fs50', 83)" class="i">d</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs52', 84)" onmouseover="showTip(event, 'fs52', 84)" class="i">IsActive</span>)
+            <span onmouseout="hideTip(event, 'fs53', 85)" onmouseover="showTip(event, 'fs53', 85)" class="k">select</span> <span onmouseout="hideTip(event, 'fs50', 86)" onmouseover="showTip(event, 'fs50', 86)" class="i">d</span> } <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs44', 87)" onmouseover="showTip(event, 'fs44', 87)" class="t">Seq</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs45', 88)" onmouseover="showTip(event, 'fs45', 88)" class="f">toList</span>
+<span onmouseout="hideTip(event, 'fs48', 89)" onmouseover="showTip(event, 'fs48', 89)" class="i">dis</span>
+
+
+
+
+
+
+<span class="c">// Mock webservice</span>
+<span class="c">// Get user lists</span>
+<span class="c">// Compare</span>
+<span class="c">// Synch diffs</span>
+    <span class="c">// Use active patterns to govern the update/change/disablement...</span>
+<span class="c">// Scheduling</span>
+<span class="c">// Health reporting</span>
+<span class="c">// etc</span>
 </code></pre></td>
 </tr>
 </table>
-<h3>Implementation</h3>
+<h2>Implementation</h2>
+<h3>Active Directory</h3>
 <p>Active Directory is searched using the managed API</p>
 <table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
 <span class="l"> 2: </span>
@@ -72,26 +115,62 @@
 <span class="l">17: </span>
 <span class="l">18: </span>
 <span class="l">19: </span>
+<span class="l">20: </span>
+<span class="l">21: </span>
+<span class="l">22: </span>
+<span class="l">23: </span>
+<span class="l">24: </span>
+<span class="l">25: </span>
+<span class="l">26: </span>
+<span class="l">27: </span>
+<span class="l">28: </span>
+<span class="l">29: </span>
+<span class="l">30: </span>
+<span class="l">31: </span>
+<span class="l">32: </span>
+<span class="l">33: </span>
+<span class="l">34: </span>
+<span class="l">35: </span>
+<span class="l">36: </span>
+<span class="l">37: </span>
 </pre></td>
 <td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="c">/// Active Directory operations and management</span>
-<span class="k">module</span> <span onmouseout="hideTip(event, 'fs4', 6)" onmouseover="showTip(event, 'fs4', 6)" class="t">ActiveDirectory</span> <span class="o">=</span>
+<span class="k">module</span> <span onmouseout="hideTip(event, 'fs5', 9)" onmouseover="showTip(event, 'fs5', 9)" class="t">ActiveDirectory</span> <span class="o">=</span>
 
     <span class="c">/// AD User account information</span>
-    <span class="k">type</span> <span onmouseout="hideTip(event, 'fs5', 7)" onmouseover="showTip(event, 'fs5', 7)" class="t">User</span> <span class="o">=</span> {
-        <span onmouseout="hideTip(event, 'fs6', 8)" onmouseover="showTip(event, 'fs6', 8)" class="i">Name</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs7', 9)" onmouseover="showTip(event, 'fs7', 9)" class="t">string</span>
-        <span onmouseout="hideTip(event, 'fs8', 10)" onmouseover="showTip(event, 'fs8', 10)" class="i">Account</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs7', 11)" onmouseover="showTip(event, 'fs7', 11)" class="t">string</span>
+    <span class="k">type</span> <span onmouseout="hideTip(event, 'fs6', 10)" onmouseover="showTip(event, 'fs6', 10)" class="t">User</span> <span class="o">=</span> {
+        <span onmouseout="hideTip(event, 'fs7', 11)" onmouseover="showTip(event, 'fs7', 11)" class="i">Name</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs8', 12)" onmouseover="showTip(event, 'fs8', 12)" class="t">string</span>
+        <span onmouseout="hideTip(event, 'fs9', 13)" onmouseover="showTip(event, 'fs9', 13)" class="i">Account</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs8', 14)" onmouseover="showTip(event, 'fs8', 14)" class="t">string</span>
+        <span onmouseout="hideTip(event, 'fs10', 15)" onmouseover="showTip(event, 'fs10', 15)" class="i">IsActive</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs11', 16)" onmouseover="showTip(event, 'fs11', 16)" class="t">bool</span>
+        <span onmouseout="hideTip(event, 'fs12', 17)" onmouseover="showTip(event, 'fs12', 17)" class="i">Other</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs8', 18)" onmouseover="showTip(event, 'fs8', 18)" class="t">string</span>
     }
 
-    <span class="c">/// Yields all domain users</span>
-    <span class="k">let</span> <span onmouseout="hideTip(event, 'fs9', 12)" onmouseover="showTip(event, 'fs9', 12)" class="f">users</span> () <span class="o">=</span>
-        <span onmouseout="hideTip(event, 'fs10', 13)" onmouseover="showTip(event, 'fs10', 13)" class="i">seq</span> {
-            <span class="k">use</span> <span onmouseout="hideTip(event, 'fs11', 14)" onmouseover="showTip(event, 'fs11', 14)" class="i">ctx</span> <span class="o">=</span> <span class="k">new</span> <span onmouseout="hideTip(event, 'fs12', 15)" onmouseover="showTip(event, 'fs12', 15)" class="t">PrincipalContext</span>(<span onmouseout="hideTip(event, 'fs13', 16)" onmouseover="showTip(event, 'fs13', 16)" class="t">ContextType</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs14', 17)" onmouseover="showTip(event, 'fs14', 17)" class="i">Domain</span>, <span class="s">&quot;ad.hfk.no&quot;</span>, <span class="s">&quot;OU=HFK,DC=ad,DC=hfk,DC=no&quot;</span>)
-            <span class="k">use</span> <span onmouseout="hideTip(event, 'fs15', 18)" onmouseover="showTip(event, 'fs15', 18)" class="i">qbeUser</span> <span class="o">=</span> <span class="k">new</span> <span onmouseout="hideTip(event, 'fs16', 19)" onmouseover="showTip(event, 'fs16', 19)" class="t">UserPrincipal</span>(<span onmouseout="hideTip(event, 'fs11', 20)" onmouseover="showTip(event, 'fs11', 20)" class="i">ctx</span>)
-            <span class="k">use</span> <span onmouseout="hideTip(event, 'fs17', 21)" onmouseover="showTip(event, 'fs17', 21)" class="i">searcher</span> <span class="o">=</span> <span class="k">new</span> <span onmouseout="hideTip(event, 'fs18', 22)" onmouseover="showTip(event, 'fs18', 22)" class="t">PrincipalSearcher</span>(<span onmouseout="hideTip(event, 'fs15', 23)" onmouseover="showTip(event, 'fs15', 23)" class="i">qbeUser</span>)
-            <span class="k">for</span> <span onmouseout="hideTip(event, 'fs19', 24)" onmouseover="showTip(event, 'fs19', 24)" class="i">u</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs17', 25)" onmouseover="showTip(event, 'fs17', 25)" class="i">searcher</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs20', 26)" onmouseover="showTip(event, 'fs20', 26)" class="f">FindAll</span>() <span class="k">do</span>
-                <span class="k">let</span> <span onmouseout="hideTip(event, 'fs21', 27)" onmouseover="showTip(event, 'fs21', 27)" class="i">ru</span> <span class="o">=</span> { <span class="i">Name</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs19', 28)" onmouseover="showTip(event, 'fs19', 28)" class="i">u</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs22', 29)" onmouseover="showTip(event, 'fs22', 29)" class="i">DisplayName</span>; <span class="i">Account</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs19', 30)" onmouseover="showTip(event, 'fs19', 30)" class="i">u</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs23', 31)" onmouseover="showTip(event, 'fs23', 31)" class="i">SamAccountName</span> }
-                <span class="k">yield</span> <span onmouseout="hideTip(event, 'fs21', 32)" onmouseover="showTip(event, 'fs21', 32)" class="i">ru</span> 
+    <span class="c">/// Dtermines if a user account is active or not at the current moment</span>
+    <span class="k">let</span> <span class="k">private</span> <span onmouseout="hideTip(event, 'fs13', 19)" onmouseover="showTip(event, 'fs13', 19)" class="f">isActive</span> (<span onmouseout="hideTip(event, 'fs14', 20)" onmouseover="showTip(event, 'fs14', 20)" class="i">user</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs15', 21)" onmouseover="showTip(event, 'fs15', 21)" class="t">UserPrincipal</span>)  <span class="o">=</span> 
+        <span onmouseout="hideTip(event, 'fs16', 22)" onmouseover="showTip(event, 'fs16', 22)" class="f">not</span> <span class="o">&lt;|</span> (<span onmouseout="hideTip(event, 'fs14', 23)" onmouseover="showTip(event, 'fs14', 23)" class="i">user</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs17', 24)" onmouseover="showTip(event, 'fs17', 24)" class="i">AccountExpirationDate</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs18', 25)" onmouseover="showTip(event, 'fs18', 25)" class="i">HasValue</span> <span class="o">&amp;&amp;</span> <span onmouseout="hideTip(event, 'fs14', 26)" onmouseover="showTip(event, 'fs14', 26)" class="i">user</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs17', 27)" onmouseover="showTip(event, 'fs17', 27)" class="i">AccountExpirationDate</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs19', 28)" onmouseover="showTip(event, 'fs19', 28)" class="i">Value</span> <span class="o">&lt;</span> <span onmouseout="hideTip(event, 'fs20', 29)" onmouseover="showTip(event, 'fs20', 29)" class="t">DateTime</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs21', 30)" onmouseover="showTip(event, 'fs21', 30)" class="i">Now</span>)
+
+    <span class="c">/// Yields domain users that match the provided pattern</span>
+    <span class="k">let</span> <span class="k">private</span> <span onmouseout="hideTip(event, 'fs22', 31)" onmouseover="showTip(event, 'fs22', 31)" class="f">findUsersMatching</span> (<span onmouseout="hideTip(event, 'fs23', 32)" onmouseover="showTip(event, 'fs23', 32)" class="i">pattern</span>) <span class="o">=</span>
+        <span onmouseout="hideTip(event, 'fs24', 33)" onmouseover="showTip(event, 'fs24', 33)" class="i">seq</span> {
+            <span class="k">use</span> <span onmouseout="hideTip(event, 'fs25', 34)" onmouseover="showTip(event, 'fs25', 34)" class="i">context</span> <span class="o">=</span> <span class="k">new</span> <span onmouseout="hideTip(event, 'fs26', 35)" onmouseover="showTip(event, 'fs26', 35)" class="t">PrincipalContext</span>(<span onmouseout="hideTip(event, 'fs27', 36)" onmouseover="showTip(event, 'fs27', 36)" class="t">ContextType</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs28', 37)" onmouseover="showTip(event, 'fs28', 37)" class="i">Domain</span>, <span class="s">&quot;ad.hfk.no&quot;</span>, <span class="s">&quot;OU=HFK,DC=ad,DC=hfk,DC=no&quot;</span>)
+            <span class="k">use</span> <span onmouseout="hideTip(event, 'fs29', 38)" onmouseover="showTip(event, 'fs29', 38)" class="i">userSearch</span> <span class="o">=</span> <span class="k">new</span> <span onmouseout="hideTip(event, 'fs15', 39)" onmouseover="showTip(event, 'fs15', 39)" class="t">UserPrincipal</span>(<span onmouseout="hideTip(event, 'fs25', 40)" onmouseover="showTip(event, 'fs25', 40)" class="i">context</span>)
+            <span onmouseout="hideTip(event, 'fs29', 41)" onmouseover="showTip(event, 'fs29', 41)" class="i">userSearch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs30', 42)" onmouseover="showTip(event, 'fs30', 42)" class="i">GivenName</span> <span class="o">&lt;-</span> <span onmouseout="hideTip(event, 'fs23', 43)" onmouseover="showTip(event, 'fs23', 43)" class="i">pattern</span>
+            <span class="k">use</span> <span onmouseout="hideTip(event, 'fs31', 44)" onmouseover="showTip(event, 'fs31', 44)" class="i">search</span> <span class="o">=</span> <span class="k">new</span> <span onmouseout="hideTip(event, 'fs32', 45)" onmouseover="showTip(event, 'fs32', 45)" class="t">PrincipalSearcher</span>(<span onmouseout="hideTip(event, 'fs29', 46)" onmouseover="showTip(event, 'fs29', 46)" class="i">userSearch</span>)
+
+            <span class="k">for</span> <span onmouseout="hideTip(event, 'fs33', 47)" onmouseover="showTip(event, 'fs33', 47)" class="i">principal</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs31', 48)" onmouseover="showTip(event, 'fs31', 48)" class="i">search</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs34', 49)" onmouseover="showTip(event, 'fs34', 49)" class="f">FindAll</span>() <span class="k">do</span>
+                <span class="k">let</span> <span onmouseout="hideTip(event, 'fs14', 50)" onmouseover="showTip(event, 'fs14', 50)" class="i">user</span> <span class="o">=</span> (<span onmouseout="hideTip(event, 'fs33', 51)" onmouseover="showTip(event, 'fs33', 51)" class="i">principal</span> <span class="o">:?&gt;</span> <span onmouseout="hideTip(event, 'fs15', 52)" onmouseover="showTip(event, 'fs15', 52)" class="t">UserPrincipal</span>)
+                <span class="k">yield</span> { <span class="i">Name</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs14', 53)" onmouseover="showTip(event, 'fs14', 53)" class="i">user</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs35', 54)" onmouseover="showTip(event, 'fs35', 54)" class="i">DisplayName</span>
+                        <span class="i">Account</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs14', 55)" onmouseover="showTip(event, 'fs14', 55)" class="i">user</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs36', 56)" onmouseover="showTip(event, 'fs36', 56)" class="i">SamAccountName</span>
+                        <span class="i">IsActive</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs14', 57)" onmouseover="showTip(event, 'fs14', 57)" class="i">user</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs13', 58)" onmouseover="showTip(event, 'fs13', 58)" class="f">isActive</span>
+                        <span class="i">Other</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs14', 59)" onmouseover="showTip(event, 'fs14', 59)" class="i">user</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs17', 60)" onmouseover="showTip(event, 'fs17', 60)" class="i">AccountExpirationDate</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs37', 61)" onmouseover="showTip(event, 'fs37', 61)" class="f">ToString</span>()
+                      }
         }
+
+    <span class="c">/// Yields all users</span>
+    <span class="k">let</span> <span onmouseout="hideTip(event, 'fs38', 62)" onmouseover="showTip(event, 'fs38', 62)" class="f">users</span> () <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 63)" onmouseover="showTip(event, 'fs22', 63)" class="f">findUsersMatching</span> <span class="s">&quot;*&quot;</span>
+
+    <span class="c">/// Yields users matching the provided name pattern</span>
+    <span class="k">let</span> <span onmouseout="hideTip(event, 'fs39', 64)" onmouseover="showTip(event, 'fs39', 64)" class="f">usersMatching</span> <span onmouseout="hideTip(event, 'fs40', 65)" onmouseover="showTip(event, 'fs40', 65)" class="i">name</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 66)" onmouseover="showTip(event, 'fs22', 66)" class="f">findUsersMatching</span> <span onmouseout="hideTip(event, 'fs40', 67)" onmouseover="showTip(event, 'fs40', 67)" class="i">name</span>
 </code></pre></td>
 </tr>
 </table>
@@ -99,33 +178,56 @@
           <div class="tip" id="fs1">namespace System</div>
 <div class="tip" id="fs2">namespace System.DirectoryServices</div>
 <div class="tip" id="fs3">namespace System.DirectoryServices.AccountManagement</div>
-<div class="tip" id="fs4">namespace System.DirectoryServices.ActiveDirectory</div>
-<div class="tip" id="fs5">type User =<br />&#160;&#160;{Name: string;<br />&#160;&#160;&#160;Account: string;}<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.User<br /><em><br /><br />&#160;AD User account information</em></div>
-<div class="tip" id="fs6">User.Name: string</div>
-<div class="tip" id="fs7">Multiple items<br />val string : value:&#39;T -&gt; string<br /><br />Full name: Microsoft.FSharp.Core.Operators.string<br /><br />--------------------<br />type string = System.String<br /><br />Full name: Microsoft.FSharp.Core.string</div>
-<div class="tip" id="fs8">User.Account: string</div>
-<div class="tip" id="fs9">val users : unit -&gt; seq&lt;User&gt;<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.users<br /><em><br /><br />&#160;Yields all domain users</em></div>
-<div class="tip" id="fs10">Multiple items<br />val seq : sequence:seq&lt;&#39;T&gt; -&gt; seq&lt;&#39;T&gt;<br /><br />Full name: Microsoft.FSharp.Core.Operators.seq<br /><br />--------------------<br />type seq&lt;&#39;T&gt; = System.Collections.Generic.IEnumerable&lt;&#39;T&gt;<br /><br />Full name: Microsoft.FSharp.Collections.seq&lt;_&gt;</div>
-<div class="tip" id="fs11">val ctx : PrincipalContext</div>
-<div class="tip" id="fs12">Multiple items<br />type PrincipalContext =<br />&#160;&#160;new : contextType:ContextType -&gt; PrincipalContext + 6 overloads<br />&#160;&#160;member ConnectedServer : string<br />&#160;&#160;member Container : string<br />&#160;&#160;member ContextType : ContextType<br />&#160;&#160;member Dispose : unit -&gt; unit<br />&#160;&#160;member Name : string<br />&#160;&#160;member Options : ContextOptions<br />&#160;&#160;member UserName : string<br />&#160;&#160;member ValidateCredentials : userName:string * password:string -&gt; bool + 1 overload<br /><br />Full name: System.DirectoryServices.AccountManagement.PrincipalContext<br /><br />--------------------<br />PrincipalContext(contextType: ContextType) : unit<br />PrincipalContext(contextType: ContextType, name: string) : unit<br />PrincipalContext(contextType: ContextType, name: string, container: string) : unit<br />PrincipalContext(contextType: ContextType, name: string, container: string, options: ContextOptions) : unit<br />PrincipalContext(contextType: ContextType, name: string, userName: string, password: string) : unit<br />PrincipalContext(contextType: ContextType, name: string, container: string, userName: string, password: string) : unit<br />PrincipalContext(contextType: ContextType, name: string, container: string, options: ContextOptions, userName: string, password: string) : unit</div>
-<div class="tip" id="fs13">type ContextType =<br />&#160;&#160;| Machine = 0<br />&#160;&#160;| Domain = 1<br />&#160;&#160;| ApplicationDirectory = 2<br /><br />Full name: System.DirectoryServices.AccountManagement.ContextType</div>
-<div class="tip" id="fs14">field ContextType.Domain = 1</div>
-<div class="tip" id="fs15">val qbeUser : UserPrincipal</div>
-<div class="tip" id="fs16">Multiple items<br />type UserPrincipal =<br />&#160;&#160;inherit AuthenticablePrincipal<br />&#160;&#160;new : context:PrincipalContext -&gt; UserPrincipal + 1 overload<br />&#160;&#160;member AdvancedSearchFilter : AdvancedFilters<br />&#160;&#160;member EmailAddress : string with get, set<br />&#160;&#160;member EmployeeId : string with get, set<br />&#160;&#160;member GetAuthorizationGroups : unit -&gt; PrincipalSearchResult&lt;Principal&gt;<br />&#160;&#160;member GivenName : string with get, set<br />&#160;&#160;member MiddleName : string with get, set<br />&#160;&#160;member Surname : string with get, set<br />&#160;&#160;member VoiceTelephoneNumber : string with get, set<br />&#160;&#160;static member Current : UserPrincipal<br />&#160;&#160;...<br /><br />Full name: System.DirectoryServices.AccountManagement.UserPrincipal<br /><br />--------------------<br />UserPrincipal(context: PrincipalContext) : unit<br />UserPrincipal(context: PrincipalContext, samAccountName: string, password: string, enabled: bool) : unit</div>
-<div class="tip" id="fs17">val searcher : PrincipalSearcher</div>
-<div class="tip" id="fs18">Multiple items<br />type PrincipalSearcher =<br />&#160;&#160;new : unit -&gt; PrincipalSearcher + 1 overload<br />&#160;&#160;member Context : PrincipalContext<br />&#160;&#160;member Dispose : unit -&gt; unit<br />&#160;&#160;member FindAll : unit -&gt; PrincipalSearchResult&lt;Principal&gt;<br />&#160;&#160;member FindOne : unit -&gt; Principal<br />&#160;&#160;member GetUnderlyingSearcher : unit -&gt; obj<br />&#160;&#160;member GetUnderlyingSearcherType : unit -&gt; Type<br />&#160;&#160;member QueryFilter : Principal with get, set<br /><br />Full name: System.DirectoryServices.AccountManagement.PrincipalSearcher<br /><br />--------------------<br />PrincipalSearcher() : unit<br />PrincipalSearcher(queryFilter: Principal) : unit</div>
-<div class="tip" id="fs19">val u : Principal</div>
-<div class="tip" id="fs20">PrincipalSearcher.FindAll() : PrincipalSearchResult&lt;Principal&gt;</div>
-<div class="tip" id="fs21">val ru : User</div>
-<div class="tip" id="fs22">property Principal.DisplayName: string</div>
-<div class="tip" id="fs23">property Principal.SamAccountName: string</div>
-<div class="tip" id="fs24">val users : ActiveDirectory.User list<br /><br />Full name: Ad_vismae_integration.users</div>
-<div class="tip" id="fs25">Multiple items<br />module ActiveDirectory<br /><br />from Ad_vismae_integration<br /><em><br /><br />&#160;Active Directory operations and management</em><br /><br />--------------------<br />namespace System.DirectoryServices.ActiveDirectory</div>
-<div class="tip" id="fs26">val users : unit -&gt; seq&lt;ActiveDirectory.User&gt;<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.users<br /><em><br /><br />&#160;Yields all domain users</em></div>
-<div class="tip" id="fs27">module Seq<br /><br />from Microsoft.FSharp.Collections</div>
-<div class="tip" id="fs28">val toList : source:seq&lt;&#39;T&gt; -&gt; &#39;T list<br /><br />Full name: Microsoft.FSharp.Collections.Seq.toList</div>
-<div class="tip" id="fs29">val u : ActiveDirectory.User</div>
-<div class="tip" id="fs30">val printfn : format:Printf.TextWriterFormat&lt;&#39;T&gt; -&gt; &#39;T<br /><br />Full name: Microsoft.FSharp.Core.ExtraTopLevelOperators.printfn</div>
+<div class="tip" id="fs4">namespace System.Linq</div>
+<div class="tip" id="fs5">namespace System.DirectoryServices.ActiveDirectory</div>
+<div class="tip" id="fs6">type User =<br />&#160;&#160;{Name: string;<br />&#160;&#160;&#160;Account: string;<br />&#160;&#160;&#160;IsActive: bool;<br />&#160;&#160;&#160;Other: string;}<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.User<br /><em><br /><br />&#160;AD User account information</em></div>
+<div class="tip" id="fs7">User.Name: string</div>
+<div class="tip" id="fs8">Multiple items<br />val string : value:&#39;T -&gt; string<br /><br />Full name: Microsoft.FSharp.Core.Operators.string<br /><br />--------------------<br />type string = String<br /><br />Full name: Microsoft.FSharp.Core.string</div>
+<div class="tip" id="fs9">User.Account: string</div>
+<div class="tip" id="fs10">User.IsActive: bool</div>
+<div class="tip" id="fs11">type bool = Boolean<br /><br />Full name: Microsoft.FSharp.Core.bool</div>
+<div class="tip" id="fs12">User.Other: string</div>
+<div class="tip" id="fs13">val private isActive : user:UserPrincipal -&gt; bool<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.isActive<br /><em><br /><br />&#160;Dtermines if a user account is active or not at the current moment</em></div>
+<div class="tip" id="fs14">val user : UserPrincipal</div>
+<div class="tip" id="fs15">Multiple items<br />type UserPrincipal =<br />&#160;&#160;inherit AuthenticablePrincipal<br />&#160;&#160;new : context:PrincipalContext -&gt; UserPrincipal + 1 overload<br />&#160;&#160;member AdvancedSearchFilter : AdvancedFilters<br />&#160;&#160;member EmailAddress : string with get, set<br />&#160;&#160;member EmployeeId : string with get, set<br />&#160;&#160;member GetAuthorizationGroups : unit -&gt; PrincipalSearchResult&lt;Principal&gt;<br />&#160;&#160;member GivenName : string with get, set<br />&#160;&#160;member MiddleName : string with get, set<br />&#160;&#160;member Surname : string with get, set<br />&#160;&#160;member VoiceTelephoneNumber : string with get, set<br />&#160;&#160;static member Current : UserPrincipal<br />&#160;&#160;...<br /><br />Full name: System.DirectoryServices.AccountManagement.UserPrincipal<br /><br />--------------------<br />UserPrincipal(context: PrincipalContext) : unit<br />UserPrincipal(context: PrincipalContext, samAccountName: string, password: string, enabled: bool) : unit</div>
+<div class="tip" id="fs16">val not : value:bool -&gt; bool<br /><br />Full name: Microsoft.FSharp.Core.Operators.not</div>
+<div class="tip" id="fs17">property AuthenticablePrincipal.AccountExpirationDate: Nullable&lt;DateTime&gt;</div>
+<div class="tip" id="fs18">property Nullable.HasValue: bool</div>
+<div class="tip" id="fs19">property Nullable.Value: DateTime</div>
+<div class="tip" id="fs20">Multiple items<br />type DateTime =<br />&#160;&#160;struct<br />&#160;&#160;&#160;&#160;new : ticks:int64 -&gt; DateTime + 10 overloads<br />&#160;&#160;&#160;&#160;member Add : value:TimeSpan -&gt; DateTime<br />&#160;&#160;&#160;&#160;member AddDays : value:float -&gt; DateTime<br />&#160;&#160;&#160;&#160;member AddHours : value:float -&gt; DateTime<br />&#160;&#160;&#160;&#160;member AddMilliseconds : value:float -&gt; DateTime<br />&#160;&#160;&#160;&#160;member AddMinutes : value:float -&gt; DateTime<br />&#160;&#160;&#160;&#160;member AddMonths : months:int -&gt; DateTime<br />&#160;&#160;&#160;&#160;member AddSeconds : value:float -&gt; DateTime<br />&#160;&#160;&#160;&#160;member AddTicks : value:int64 -&gt; DateTime<br />&#160;&#160;&#160;&#160;member AddYears : value:int -&gt; DateTime<br />&#160;&#160;&#160;&#160;...<br />&#160;&#160;end<br /><br />Full name: System.DateTime<br /><br />--------------------<br />DateTime()<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(ticks: int64) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(ticks: int64, kind: DateTimeKind) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(year: int, month: int, day: int) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(year: int, month: int, day: int, calendar: Globalization.Calendar) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(year: int, month: int, day: int, hour: int, minute: int, second: int) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(year: int, month: int, day: int, hour: int, minute: int, second: int, kind: DateTimeKind) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(year: int, month: int, day: int, hour: int, minute: int, second: int, calendar: Globalization.Calendar) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(year: int, month: int, day: int, hour: int, minute: int, second: int, millisecond: int) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em><br />DateTime(year: int, month: int, day: int, hour: int, minute: int, second: int, millisecond: int, kind: DateTimeKind) : unit<br />&#160;&#160;&#160;<em>(+0 other overloads)</em></div>
+<div class="tip" id="fs21">property DateTime.Now: DateTime</div>
+<div class="tip" id="fs22">val private findUsersMatching : pattern:string -&gt; seq&lt;User&gt;<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.findUsersMatching<br /><em><br /><br />&#160;Yields domain users that match the provided pattern</em></div>
+<div class="tip" id="fs23">val pattern : string</div>
+<div class="tip" id="fs24">Multiple items<br />val seq : sequence:seq&lt;&#39;T&gt; -&gt; seq&lt;&#39;T&gt;<br /><br />Full name: Microsoft.FSharp.Core.Operators.seq<br /><br />--------------------<br />type seq&lt;&#39;T&gt; = Collections.Generic.IEnumerable&lt;&#39;T&gt;<br /><br />Full name: Microsoft.FSharp.Collections.seq&lt;_&gt;</div>
+<div class="tip" id="fs25">val context : PrincipalContext</div>
+<div class="tip" id="fs26">Multiple items<br />type PrincipalContext =<br />&#160;&#160;new : contextType:ContextType -&gt; PrincipalContext + 6 overloads<br />&#160;&#160;member ConnectedServer : string<br />&#160;&#160;member Container : string<br />&#160;&#160;member ContextType : ContextType<br />&#160;&#160;member Dispose : unit -&gt; unit<br />&#160;&#160;member Name : string<br />&#160;&#160;member Options : ContextOptions<br />&#160;&#160;member UserName : string<br />&#160;&#160;member ValidateCredentials : userName:string * password:string -&gt; bool + 1 overload<br /><br />Full name: System.DirectoryServices.AccountManagement.PrincipalContext<br /><br />--------------------<br />PrincipalContext(contextType: ContextType) : unit<br />PrincipalContext(contextType: ContextType, name: string) : unit<br />PrincipalContext(contextType: ContextType, name: string, container: string) : unit<br />PrincipalContext(contextType: ContextType, name: string, container: string, options: ContextOptions) : unit<br />PrincipalContext(contextType: ContextType, name: string, userName: string, password: string) : unit<br />PrincipalContext(contextType: ContextType, name: string, container: string, userName: string, password: string) : unit<br />PrincipalContext(contextType: ContextType, name: string, container: string, options: ContextOptions, userName: string, password: string) : unit</div>
+<div class="tip" id="fs27">type ContextType =<br />&#160;&#160;| Machine = 0<br />&#160;&#160;| Domain = 1<br />&#160;&#160;| ApplicationDirectory = 2<br /><br />Full name: System.DirectoryServices.AccountManagement.ContextType</div>
+<div class="tip" id="fs28">field ContextType.Domain = 1</div>
+<div class="tip" id="fs29">val userSearch : UserPrincipal</div>
+<div class="tip" id="fs30">property UserPrincipal.GivenName: string</div>
+<div class="tip" id="fs31">val search : PrincipalSearcher</div>
+<div class="tip" id="fs32">Multiple items<br />type PrincipalSearcher =<br />&#160;&#160;new : unit -&gt; PrincipalSearcher + 1 overload<br />&#160;&#160;member Context : PrincipalContext<br />&#160;&#160;member Dispose : unit -&gt; unit<br />&#160;&#160;member FindAll : unit -&gt; PrincipalSearchResult&lt;Principal&gt;<br />&#160;&#160;member FindOne : unit -&gt; Principal<br />&#160;&#160;member GetUnderlyingSearcher : unit -&gt; obj<br />&#160;&#160;member GetUnderlyingSearcherType : unit -&gt; Type<br />&#160;&#160;member QueryFilter : Principal with get, set<br /><br />Full name: System.DirectoryServices.AccountManagement.PrincipalSearcher<br /><br />--------------------<br />PrincipalSearcher() : unit<br />PrincipalSearcher(queryFilter: Principal) : unit</div>
+<div class="tip" id="fs33">val principal : Principal</div>
+<div class="tip" id="fs34">PrincipalSearcher.FindAll() : PrincipalSearchResult&lt;Principal&gt;</div>
+<div class="tip" id="fs35">property Principal.DisplayName: string</div>
+<div class="tip" id="fs36">property Principal.SamAccountName: string</div>
+<div class="tip" id="fs37">Nullable.ToString() : string</div>
+<div class="tip" id="fs38">val users : unit -&gt; seq&lt;User&gt;<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.users<br /><em><br /><br />&#160;Yields all users</em></div>
+<div class="tip" id="fs39">val usersMatching : name:string -&gt; seq&lt;User&gt;<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.usersMatching<br /><em><br /><br />&#160;Yields users matching the provided name pattern</em></div>
+<div class="tip" id="fs40">val name : string</div>
+<div class="tip" id="fs41">val users : ActiveDirectory.User list<br /><br />Full name: Ad_vismae_integration.users</div>
+<div class="tip" id="fs42">Multiple items<br />module ActiveDirectory<br /><br />from Ad_vismae_integration<br /><em><br /><br />&#160;Active Directory operations and management</em><br /><br />--------------------<br />namespace System.DirectoryServices.ActiveDirectory</div>
+<div class="tip" id="fs43">val users : unit -&gt; seq&lt;ActiveDirectory.User&gt;<br /><br />Full name: Ad_vismae_integration.ActiveDirectory.users<br /><em><br /><br />&#160;Yields all users</em></div>
+<div class="tip" id="fs44">module Seq<br /><br />from Microsoft.FSharp.Collections</div>
+<div class="tip" id="fs45">val toList : source:seq&lt;&#39;T&gt; -&gt; &#39;T list<br /><br />Full name: Microsoft.FSharp.Collections.Seq.toList</div>
+<div class="tip" id="fs46">val u : ActiveDirectory.User</div>
+<div class="tip" id="fs47">val printfn : format:Printf.TextWriterFormat&lt;&#39;T&gt; -&gt; &#39;T<br /><br />Full name: Microsoft.FSharp.Core.ExtraTopLevelOperators.printfn</div>
+<div class="tip" id="fs48">val dis : ActiveDirectory.User list<br /><br />Full name: Ad_vismae_integration.dis</div>
+<div class="tip" id="fs49">val query : Linq.QueryBuilder<br /><br />Full name: Microsoft.FSharp.Core.ExtraTopLevelOperators.query</div>
+<div class="tip" id="fs50">val d : ActiveDirectory.User</div>
+<div class="tip" id="fs51">custom operation: where (bool)<br /><br />Calls Linq.QueryBuilder.Where </div>
+<div class="tip" id="fs52">ActiveDirectory.User.IsActive: bool</div>
+<div class="tip" id="fs53">custom operation: select (&#39;Result)<br /><br />Calls Linq.QueryBuilder.Select </div>
 
         </div>
         <div class="span1"></div>
