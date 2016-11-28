@@ -45,14 +45,25 @@ open System.Linq
 module ActiveDirectory =
 
     /// AD User account information
-    type User = {
-        EmployeeId : string
+    type User = 
+      { EmployeeId : string
         DisplayName : string
         Account : string
         Email : string
         IsActive : bool
-        Other : string
-    }
+        Other : string }
+    with 
+        static member Default = 
+          { EmployeeId = "-1"
+            DisplayName = "Unknown"
+            Account = ""
+            Email = "unknown@example.com"
+            IsActive = false
+            Other = "" }
+
+//    let DefaultUser = {
+//        EmployeeId =
+//    }
 
     /// Determines if a user account is active or not at the current moment
     let private isActive (user : UserPrincipal)  = 
@@ -134,14 +145,12 @@ module ActiveDirectory =
 
 module VismaEnterprise =
 
-    type Group = {
-        Id : int
-    }
+    type Group = { Id : int }
 
     type Username = | DomainUser of string | Alias of string
 
-    type User = {
-        VismaId : int
+    type User = 
+      { VismaId : int
         Email : string
         WorkPhone : string
         MobilePhone : string
@@ -150,32 +159,30 @@ module VismaEnterprise =
         GroupMembership : Group list
         DisplayName : string
         UserName : string
-        UserNames : Username list
-    }
-
-    let DefaultUser = {
-        VismaId = -1
-        Email = "unknown@example.com"
-        WorkPhone = ""
-        MobilePhone = ""
-        Initials = ""
-        Type = "INTERNAL"
-        GroupMembership = []
-        DisplayName = ""
-        UserName = ""
-        UserNames = []
-    }
+        UserNames : Username list }
+    with 
+        static member Default = 
+          { VismaId = -1
+            Email = "unknown@example.com"
+            WorkPhone = ""
+            MobilePhone = ""
+            Initials = ""
+            Type = "INTERNAL"
+            GroupMembership = []
+            DisplayName = ""
+            UserName = ""
+            UserNames = [] }
 
     let users () =
         // GET - /user
         // read from service
         // translate
         // return:
-        [ { DefaultUser with DisplayName = "One" }
-          { DefaultUser with DisplayName = "Two" }
-          { DefaultUser with DisplayName = "Three" }
-          { DefaultUser with DisplayName = "Four" }
-          { DefaultUser with DisplayName = "Five" }
+        [ { User.Default with DisplayName = "One" }
+          { User.Default with DisplayName = "Two" }
+          { User.Default with DisplayName = "Three" }
+          { User.Default with DisplayName = "Four" }
+          { User.Default with DisplayName = "Five" }
         ] |> List.toSeq
         
 
@@ -184,7 +191,7 @@ module VismaEnterprise =
 
 (*** define: synch ***)
 
-type UpdateAction = | Ignore | Update | Deactivate  // TODO: need to check the syntax for deactivating users, this might also be an "update" - check if add needs its own operation
+type UpdateAction = | Ignore | Add | Update | Deactivate  // TODO: need to check the syntax for deactivating users, this might also be an "update" - check if add needs its own operation
 
 let synchDemo (ad: (string * int) list) (ve: (string * int) list) =
     // pattern match in query
@@ -197,7 +204,7 @@ let synchDemo (ad: (string * int) list) (ve: (string * int) list) =
 
 
 
-let ad = [("one@one.com",1);("two@one.com",2);("three@one.com",5);("four@one.com",6;("five@one.com",9);]
+let ad = [("one@one.com",1);("two@one.com",2);("three@one.com",5);("four@one.com",6);("five@one.com",9);]
 let ve = [("one@one.com",1);("two@one.com",19);("three@one.com",123);]
 
 synchDemo ad ve
@@ -227,9 +234,52 @@ let adUsers = ActiveDirectory.users() |> Seq.toList
 let veUsers = VismaEnterprise.users() |> Seq.toList
 
 
+let (|IsntInVismaE|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
+let (|IsDeleted|_|) (adu:ActiveDirectory.User)  = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
+let IsChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User)  = Some (adu)
 
 
+let (|HasChanges|_|) (adu:ActiveDirectory.User, vu:VismaEnterprise.User)  = Some (adu)
 
+let matches = 
+
+    let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
+        match (adu, vu) with
+        | (adu, IsntInVismaE(vu)) -> Add
+        | (IsDeleted(adu), vu) -> Deactivate
+        | _ as t -> 
+            match IsChanged(adu, vu) with
+            | Some x -> Update
+            | None -> Ignore 
+            |> ignore
+
+            match t with
+            | HasChanges as tuple -> Update
+            | None -> Ignore
+
+//
+//            | Some -> Update
+//            | None
+        //| (IsChanged(adu, vu), vu) -> Update
+        //| _,_ -> Ignore
+
+    let adUserUpdates = 
+        query {
+            for adu in adUsers do
+            leftOuterJoin vu in veUsers
+                on (adu.Email = vu.Email) into result
+            for vu in result.DefaultIfEmpty(VismaEnterprise.User.Default) do
+            select ((adu, vu) |> action, (adu, vu)) } 
+  
+
+    let deletedVismaUsers =
+        query { 
+            for vu in veUsers do
+            where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
+            select (Deactivate, (ActiveDirectory.User.Default, vu)) }
+
+    adUserUpdates.Union(deletedVismaUsers)
+    |> Seq.toList
 
 synch adUsers veUsers
 
