@@ -214,115 +214,79 @@ module VismaEnterprise =
 
 (*** define: synch ***)
 
-type UpdateAction = | Ignore | Add | Update | Deactivate  // TODO: need to check the syntax for deactivating users, this might also be an "update" - check if add needs its own operation
+module Integration = 
 
-let synchDemo (ad: (string * int) list) (ve: (string * int) list) =
-    // pattern match in query
-    //  for adU in ad do
-    //  select (Comparison(adU, ve.FirstOrDefault(email)))  // null match = add, other match = ignore or update -- return (UpdateAction, User)
+    let areChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
+        not (adu.DisplayName = vu.DisplayName       
+             //&& adu.Account = vu. // TODO: check account name changes against the VISMA user changes
+                                    // TODO: get "workphone" and other info into the integration
+             && adu.Email = vu.Email )
 
+    type UpdateAction = | Ignore | Add | Update | Deactivate
 
-    // selet veInfo that`s not inside the adInfo and use it for @delete@ commands
-    ()
+    let (|IsntInVismaE|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
+    let (|IsntInAd|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
+    let (|IsExpired|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
 
+    let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
+        match adu, vu with
+        | IsntInAd(adu), vu -> Deactivate
+        | IsExpired(adu), vu -> Deactivate
+        | adu, IsntInVismaE(vu) -> Add
+        | adu, vu as users 
+            when users |> areChanged -> Update
+        | _ -> Ignore
 
+    let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
 
-let ad = [("one@one.com",1);("two@one.com",2);("three@one.com",5);("four@one.com",6);("five@one.com",9);]
-let ve = [("one@one.com",1);("two@one.com",19);("three@one.com",123);]
+        let accountNameMatches =
+            query {
+                for adu in adUsers do
+                join vu in veUsers on (adu.Account = vu.Initials)
+                select (adu, vu) }
 
-synchDemo ad ve
+        let employeeIdMatches =
+            query {
+                for adu in adUsers do
+                join vu in veUsers on (adu.EmployeeId = vu.Initials)
+                select (adu, vu) }
 
-let synch (adUsers:ActiveDirectory.User list) (veUsers:VismaEnterprise.User list) =
-//
-//    let matches = 
-//        query {
-//            for adu in adUsers do
-//            select adu
-//        }
-//
-//    let 
+        let matched = accountNameMatches |> union employeeIdMatches
 
+        let unregisteredAdUsers =
+            query {
+                for adu in adUsers do
+                where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
+                select (adu, VismaEnterprise.User.Default) }
 
-    // left outer join adUsers, mi
+        let veUsersNotInAd =
+                query { 
+                    for vu in veUsers do
+                    where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
+                    select (ActiveDirectory.User.Default, vu) }
 
-
-    // adUsers not in other list: add
-    // adUsers with same info: drop
-    // adUsers with new info: push
-    // veUsers not in the liist anymore need to be deactivated...
-    ()
-
-
-let adUsers = ActiveDirectory.users() |> Seq.toList
-let veUsers = VismaEnterprise.users() |> Seq.toList
-
-
-let (|IsntInVismaE|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
-let (|IsntInAd|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
-
-
-let areChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
-    false
-
-let (|HasChanges|HasNoChanges|IsNew|IsRemoved|) (adu:ActiveDirectory.User, vu:VismaEnterprise.User) : Choice<unit, unit, unit, unit> =
-    match adu, vu with
-    | IsntInAd(adu), vu -> IsRemoved
-    | adu, IsntInVismaE(vu) -> IsNew
-    | adu, vu as users 
-        when users |> areChanged -> HasChanges
-    | _ -> HasNoChanges
-
-let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
-    match (adu, vu) with
-    | HasChanges as t -> Update
-    | HasNoChanges as t -> Ignore
-    | IsNew as t -> Add
-    | IsRemoved as t -> Deactivate
+        matched |> union unregisteredAdUsers |> union veUsersNotInAd
 
 
-let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
+    let matchActions (users : (ActiveDirectory.User * VismaEnterprise.User) seq) =
+        seq { for u in users do yield (u |> action, u) }
 
-    let accountNameMatches =
-        query {
-            for adu in adUsers do
-            join vu in veUsers on (adu.Account = vu.Initials)
-            select (adu, vu) }
+    /// Returns all employee actions after comparing the provided sets of users
+    let allEmployeeActions ad ve = matches ad ve |> matchActions
 
-    let employeeIdMatches =
-        query {
-            for adu in adUsers do
-            join vu in veUsers on (adu.EmployeeId = vu.Initials)
-            select (adu, vu) }
-
-    let matched = accountNameMatches |> union employeeIdMatches
-
-    let unregisteredAdUsers =
-        query {
-            for adu in adUsers do
-            where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
-            select (adu, VismaEnterprise.User.Default) }
-
-    let veUsersNotInAd =
-            query { 
-                for vu in veUsers do
-                where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
-                select (ActiveDirectory.User.Default, vu) }
-
-    matched |> union unregisteredAdUsers |> union veUsersNotInAd
-
-
-let actions (users : (ActiveDirectory.User * VismaEnterprise.User) seq) =
-    seq { for u in users do 
-            yield (u |> action, u) }
+    /// Returns necessary actions and employees to synch AD and Visma Enterprise
+    let employeeActions ad ve = 
+        allEmployeeActions ad ve 
+        |> Seq.filter (fun (a, t) -> a <> Ignore)
 
 
 let testVe = 
-        [ { VismaEnterprise.User.Default with DisplayName = "One"; Initials = "123" }
-          { VismaEnterprise.User.Default with DisplayName = "Two"; Initials = "1234" }
-          { VismaEnterprise.User.Default with DisplayName = "Three"; Initials = "12345" }
-          { VismaEnterprise.User.Default with DisplayName = "Four"; Initials = "AABA" }
-          { VismaEnterprise.User.Default with DisplayName = "Five"; Initials = "ABBA" }
-          { VismaEnterprise.User.Default with DisplayName = "Not in VE"; Initials = "RAWR" }
+        [ { VismaEnterprise.User.Default with DisplayName = "One"; Initials = "123"; VismaId = 123 }
+          { VismaEnterprise.User.Default with DisplayName = "Two"; Initials = "1234"; VismaId = 123 }
+          { VismaEnterprise.User.Default with DisplayName = "Three"; Initials = "12345"; VismaId = 123 }
+          { VismaEnterprise.User.Default with DisplayName = "Four"; Initials = "AABA"; VismaId = 123 }
+          { VismaEnterprise.User.Default with DisplayName = "Five"; Initials = "ABBA"; VismaId = 123 }
+          { VismaEnterprise.User.Default with DisplayName = "Not in VE"; Initials = "RAWR"; VismaId = 123 }
         ] |> List.toSeq
 
 let testAd = 
@@ -334,19 +298,25 @@ let testAd =
           { ActiveDirectory.User.Default with DisplayName = "Not In AD"; EmployeeId = "999"; Account="OLD" }
         ] |> List.toSeq
 
-matches testAd testVe
+
+Integration.allEmployeeActions testAd testVe
+Integration.employeeActions testAd testVe
+
+
 
 
 
 // Mock webservice
 // Get user lists
-// Compare
-// Synch diffs
-    // Use active patterns to govern the update/change/disablement...
 // Scheduling
 // Health reporting
 // etc
 
+let adUsers = ActiveDirectory.users() |> Seq.toList |> Seq.take(20)
+let veUsers = VismaEnterprise.users() |> Seq.toList
+
+Integration.employeeActions adUsers veUsers
+let ff = Integration.allEmployeeActions adUsers veUsers |> Seq.toList
 
 
 
