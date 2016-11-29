@@ -282,23 +282,38 @@ let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
 
 let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
 
-    let adUserUpdates = 
+    let accountNameMatches =
         query {
             for adu in adUsers do
-            leftOuterJoin vu in veUsers
-                on (adu.EmployeeId = vu.Initials) into results 
-            for vu in results.DefaultIfEmpty(VismaEnterprise.User.Default) do
-            select (Ignore, (adu, vu)) }  //((adu, vu) |> action, (adu, vu)) } 
-  
+            join vu in veUsers on (adu.Account = vu.Initials)
+            select (adu, vu) }
 
-    let deletedVismaUsers =
-        query { 
-            for vu in veUsers do
-            where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
-            select (Deactivate, (ActiveDirectory.User.Default, vu)) }
+    let employeeIdMatches =
+        query {
+            for adu in adUsers do
+            join vu in veUsers on (adu.EmployeeId = vu.Initials)
+            select (adu, vu) }
 
-    adUserUpdates.Union(deletedVismaUsers)
-    |> Seq.toList
+    let matched = accountNameMatches |> union employeeIdMatches
+
+    let unregisteredAdUsers =
+        query {
+            for adu in adUsers do
+            where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
+            select (adu, VismaEnterprise.User.Default) }
+
+    let veUsersNotInAd =
+            query { 
+                for vu in veUsers do
+                where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
+                select (ActiveDirectory.User.Default, vu) }
+
+    matched |> union unregisteredAdUsers |> union veUsersNotInAd
+
+
+let actions (users : (ActiveDirectory.User * VismaEnterprise.User) seq) =
+    seq { for u in users do 
+            yield (u |> action, u) }
 
 
 let testVe = 
@@ -319,39 +334,8 @@ let testAd =
           { ActiveDirectory.User.Default with DisplayName = "Not In AD"; EmployeeId = "999"; Account="OLD" }
         ] |> List.toSeq
 
-
-
-let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
-
-    let accountNameMatches =
-        query {
-            for adu in testAd do
-            join vu in testVe on (adu.Account = vu.Initials)
-            select (adu, vu) }
-
-    let employeeIdMatches =
-        query {
-            for adu in testAd do
-            join vu in testVe on (adu.EmployeeId = vu.Initials)
-            select (adu, vu) }
-
-    let matched = accountNameMatches |> union employeeIdMatches
-
-    let unregisteredAdUsers =
-        query {
-            for adu in testAd do
-            where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
-            select (adu, VismaEnterprise.User.Default) }
-
-    let veUsersNotInAd =
-            query { 
-                for vu in testVe do
-                where (not <| testAd.Any(fun adu -> adu.Email = vu.Email))
-                select (ActiveDirectory.User.Default, vu) }
-
-    matched |> union unregisteredAdUsers |> union veUsersNotInAd
-
 matches testAd testVe
+
 
 
 // Mock webservice
