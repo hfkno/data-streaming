@@ -37,10 +37,12 @@ open System
 open System.DirectoryServices
 open System.DirectoryServices.AccountManagement
 open System.Linq
+open System.Collections.Generic
 
 
 
 
+let union a b = (a:IEnumerable<'a>).Union(b)
 
 
 (*** define: ad-operations ***)
@@ -51,7 +53,6 @@ module ActiveDirectory =
     /// AD User account information
     type User = 
       { EmployeeId : string
-        Name : string
         DisplayName : string
         Account : string
         Email : string
@@ -60,7 +61,6 @@ module ActiveDirectory =
     with 
         static member Default = 
           { EmployeeId = "-1"
-            Name = "Unknown"
             DisplayName = "Unknown"
             Account = ""
             Email = "unknown@example.com"
@@ -75,18 +75,20 @@ module ActiveDirectory =
     let private isActive (user : UserPrincipal)  = 
         not <| (user.AccountExpirationDate.HasValue && user.AccountExpirationDate.Value < DateTime.Now)
 
-    /// EmployeeIds are stored as carLicense with a birthdate suffixed
+    /// EmployeeIds are stored as the carLicense property with a birthdate suffixed
     let private employeeId (user: UserPrincipal) =
         try
             let de = user.GetUnderlyingObject() :?> DirectoryEntry
-        
-            let license = de.Properties.["carLicense"].Value.ToString()
-            let birthDateLength = 6
-            license.Substring(0, license.Length - birthDateLength)
+            let licenseProp = de.Properties.["carLicense"]
+            if licenseProp.Value |> isNull then
+                User.Default.EmployeeId
+            else
+                let license = licenseProp.Value.ToString()
+                let birthDateLength = 6
+                license.Substring(0, license.Length - birthDateLength)
         with
         | _ -> 
-            printfn "Choked on user %O" user.DisplayName
-            failwith "noooooo"
+            failwith (sprintf "Error reading employeeId for user '%s' (%s)" user.DisplayName user.SamAccountName)
 
     /// Yields domain users that match the provided pattern
     let private findUsersMatching (pattern) =
@@ -100,7 +102,6 @@ module ActiveDirectory =
                 let user = (principal :?> UserPrincipal)
 
                 yield { EmployeeId = user |> employeeId
-                        Name = user.DistinguishedName
                         DisplayName = user.DisplayName
                         Email = user.EmailAddress
                         Account = user.SamAccountName
@@ -113,12 +114,6 @@ module ActiveDirectory =
     /// Yields users matching the provided name pattern
     let usersMatching name = findUsersMatching name
 
-
-
-
-let aadwag = ActiveDirectory.usersMatching("Aar*") |> Seq.toList
-let testt = ActiveDirectory.usersMatching("Tonje*") |> Seq.toList
-let fagskole = ActiveDirectory.usersMatching("Fagsko*") |> Seq.toList
 
 
 (*** hide ***)
@@ -263,11 +258,10 @@ let veUsers = VismaEnterprise.users() |> Seq.toList
 
 
 let (|IsntInVismaE|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
-let (|IsntInAd|_|) (adu:ActiveDirectory.User)  = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
-let IsChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User)  = Some (adu)
+let (|IsntInAd|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
+
 
 let areChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
-    
     false
 
 let (|HasChanges|HasNoChanges|IsNew|IsRemoved|) (adu:ActiveDirectory.User, vu:VismaEnterprise.User) : Choice<unit, unit, unit, unit> =
@@ -286,15 +280,15 @@ let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
     | IsRemoved as t -> Deactivate
 
 
-let matches = 
+let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
 
     let adUserUpdates = 
         query {
             for adu in adUsers do
             leftOuterJoin vu in veUsers
-                on (adu.Email = vu.Email) into result
-            for vu in result.DefaultIfEmpty(VismaEnterprise.User.Default) do
-            select ((adu, vu) |> action, (adu, vu)) } 
+                on (adu.EmployeeId = vu.Initials) into results 
+            for vu in results.DefaultIfEmpty(VismaEnterprise.User.Default) do
+            select (Ignore, (adu, vu)) }  //((adu, vu) |> action, (adu, vu)) } 
   
 
     let deletedVismaUsers =
@@ -306,12 +300,58 @@ let matches =
     adUserUpdates.Union(deletedVismaUsers)
     |> Seq.toList
 
-synch adUsers veUsers
+
+let testVe = 
+        [ { VismaEnterprise.User.Default with DisplayName = "One"; Initials = "123" }
+          { VismaEnterprise.User.Default with DisplayName = "Two"; Initials = "1234" }
+          { VismaEnterprise.User.Default with DisplayName = "Three"; Initials = "12345" }
+          { VismaEnterprise.User.Default with DisplayName = "Four"; Initials = "AABA" }
+          { VismaEnterprise.User.Default with DisplayName = "Five"; Initials = "ABBA" }
+          { VismaEnterprise.User.Default with DisplayName = "Not in VE"; Initials = "RAWR" }
+        ] |> List.toSeq
+
+let testAd = 
+        [ { ActiveDirectory.User.Default with DisplayName = "One"; EmployeeId = "123"; Account="" }
+          { ActiveDirectory.User.Default with DisplayName = "Two"; EmployeeId = "1234"; Account="" }
+          { ActiveDirectory.User.Default with DisplayName = "Three"; EmployeeId = "12345"; Account="" }
+          { ActiveDirectory.User.Default with DisplayName = "Four"; EmployeeId = "123456"; Account="AABA" }
+          { ActiveDirectory.User.Default with DisplayName = "Five"; EmployeeId = "2121"; Account="ABBA" }
+          { ActiveDirectory.User.Default with DisplayName = "Not In AD"; EmployeeId = "999"; Account="OLD" }
+        ] |> List.toSeq
 
 
 
+let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
 
+    let accountNameMatches =
+        query {
+            for adu in testAd do
+            join vu in testVe on (adu.Account = vu.Initials)
+            select (adu, vu) }
 
+    let employeeIdMatches =
+        query {
+            for adu in testAd do
+            join vu in testVe on (adu.EmployeeId = vu.Initials)
+            select (adu, vu) }
+
+    let matched = accountNameMatches |> union employeeIdMatches
+
+    let unregisteredAdUsers =
+        query {
+            for adu in testAd do
+            where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
+            select (adu, VismaEnterprise.User.Default) }
+
+    let veUsersNotInAd =
+            query { 
+                for vu in testVe do
+                where (not <| testAd.Any(fun adu -> adu.Email = vu.Email))
+                select (ActiveDirectory.User.Default, vu) }
+
+    matched |> union unregisteredAdUsers |> union veUsersNotInAd
+
+matches testAd testVe
 
 
 // Mock webservice
@@ -334,6 +374,11 @@ let users = ActiveDirectory.users() |> Seq.toList
 // Print all users
 for u in users do printfn "%A\r\n" u
 
+
+
+let aadwag = ActiveDirectory.usersMatching("Arne*") |> Seq.toList
+let testt = ActiveDirectory.usersMatching("Tonje*") |> Seq.toList
+let fagskole = ActiveDirectory.usersMatching("Fagsko*") |> Seq.toList
 
 let dis = query { 
             for d in users do
