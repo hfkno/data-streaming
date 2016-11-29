@@ -241,7 +241,30 @@ let IsChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User)  = Some (adu)
 
 let (|HasChanges|_|) (adu:ActiveDirectory.User, vu:VismaEnterprise.User)  = Some (adu)
 
+let (|A|B|C|) (x, y) = A
+
+let (|HasChanges|HasNoChanges|IsNew|IsMissing|) (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
+    match adu, vu with
+    | _ -> HasChanges
+
+
+
+
+
 let matches = 
+
+
+
+
+
+    /// Start here: get the active pattern to map changes to names, and those names to actions.
+
+
+    let aaaa (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
+        match (adu, vu) with
+        | HasChanges as t -> Ignore
+        | HasNoChanges as t -> Ignore
+        | _ -> Ignore
 
     let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
         match (adu, vu) with
