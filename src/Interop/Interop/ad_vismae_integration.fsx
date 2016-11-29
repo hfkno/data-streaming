@@ -39,6 +39,10 @@ open System.DirectoryServices.AccountManagement
 open System.Linq
 
 
+
+
+
+
 (*** define: ad-operations ***)
 
 /// Active Directory operations and management
@@ -47,6 +51,7 @@ module ActiveDirectory =
     /// AD User account information
     type User = 
       { EmployeeId : string
+        Name : string
         DisplayName : string
         Account : string
         Email : string
@@ -55,6 +60,7 @@ module ActiveDirectory =
     with 
         static member Default = 
           { EmployeeId = "-1"
+            Name = "Unknown"
             DisplayName = "Unknown"
             Account = ""
             Email = "unknown@example.com"
@@ -69,6 +75,19 @@ module ActiveDirectory =
     let private isActive (user : UserPrincipal)  = 
         not <| (user.AccountExpirationDate.HasValue && user.AccountExpirationDate.Value < DateTime.Now)
 
+    /// EmployeeIds are stored as carLicense with a birthdate suffixed
+    let private employeeId (user: UserPrincipal) =
+        try
+            let de = user.GetUnderlyingObject() :?> DirectoryEntry
+        
+            let license = de.Properties.["carLicense"].Value.ToString()
+            let birthDateLength = 6
+            license.Substring(0, license.Length - birthDateLength)
+        with
+        | _ -> 
+            printfn "Choked on user %O" user.DisplayName
+            failwith "noooooo"
+
     /// Yields domain users that match the provided pattern
     let private findUsersMatching (pattern) =
         seq {
@@ -79,18 +98,27 @@ module ActiveDirectory =
 
             for principal in search.FindAll() do
                 let user = (principal :?> UserPrincipal)
-                yield { EmployeeId = user.EmployeeId
+
+                yield { EmployeeId = user |> employeeId
+                        Name = user.DistinguishedName
                         DisplayName = user.DisplayName
                         Email = user.EmailAddress
                         Account = user.SamAccountName
                         IsActive = user |> isActive
-                        Other = user.SamAccountName } }
+                        Other = "" } }
 
     /// Yields all users
     let users () = findUsersMatching "*"
 
     /// Yields users matching the provided name pattern
     let usersMatching name = findUsersMatching name
+
+
+
+
+let aadwag = ActiveDirectory.usersMatching("Aar*") |> Seq.toList
+let testt = ActiveDirectory.usersMatching("Tonje*") |> Seq.toList
+let fagskole = ActiveDirectory.usersMatching("Fagsko*") |> Seq.toList
 
 
 (*** hide ***)
@@ -235,56 +263,30 @@ let veUsers = VismaEnterprise.users() |> Seq.toList
 
 
 let (|IsntInVismaE|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
-let (|IsDeleted|_|) (adu:ActiveDirectory.User)  = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
+let (|IsntInAd|_|) (adu:ActiveDirectory.User)  = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
 let IsChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User)  = Some (adu)
 
+let areChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
+    
+    false
 
-let (|HasChanges|_|) (adu:ActiveDirectory.User, vu:VismaEnterprise.User)  = Some (adu)
-
-let (|A|B|C|) (x, y) = A
-
-let (|HasChanges|HasNoChanges|IsNew|IsMissing|) (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
+let (|HasChanges|HasNoChanges|IsNew|IsRemoved|) (adu:ActiveDirectory.User, vu:VismaEnterprise.User) : Choice<unit, unit, unit, unit> =
     match adu, vu with
-    | _ -> HasChanges
+    | IsntInAd(adu), vu -> IsRemoved
+    | adu, IsntInVismaE(vu) -> IsNew
+    | adu, vu as users 
+        when users |> areChanged -> HasChanges
+    | _ -> HasNoChanges
 
-
-
+let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
+    match (adu, vu) with
+    | HasChanges as t -> Update
+    | HasNoChanges as t -> Ignore
+    | IsNew as t -> Add
+    | IsRemoved as t -> Deactivate
 
 
 let matches = 
-
-
-
-
-
-    /// Start here: get the active pattern to map changes to names, and those names to actions.
-
-
-    let aaaa (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
-        match (adu, vu) with
-        | HasChanges as t -> Ignore
-        | HasNoChanges as t -> Ignore
-        | _ -> Ignore
-
-    let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
-        match (adu, vu) with
-        | (adu, IsntInVismaE(vu)) -> Add
-        | (IsDeleted(adu), vu) -> Deactivate
-        | _ as t -> 
-            match IsChanged(adu, vu) with
-            | Some x -> Update
-            | None -> Ignore 
-            |> ignore
-
-            match t with
-            | HasChanges as tuple -> Update
-            | None -> Ignore
-
-//
-//            | Some -> Update
-//            | None
-        //| (IsChanged(adu, vu), vu) -> Update
-        //| _,_ -> Ignore
 
     let adUserUpdates = 
         query {
