@@ -67,10 +67,6 @@ module ActiveDirectory =
             IsActive = false
             Other = "" }
 
-//    let DefaultUser = {
-//        EmployeeId =
-//    }
-
     /// Determines if a user account is active or not at the current moment
     let private isActive (user : UserPrincipal)  = 
         not <| (user.AccountExpirationDate.HasValue && user.AccountExpirationDate.Value < DateTime.Now)
