@@ -30,10 +30,10 @@ Active Directory is searched using the managed API
 
 (*** hide ***)
 
-
 #r "System.DirectoryServices"
 #r "System.DirectoryServices.AccountManagement"
 #r "System.Linq"
+#r "System.Xml.Linq.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 open System
 open System.DirectoryServices
@@ -41,6 +41,7 @@ open System.DirectoryServices.AccountManagement
 open System.Linq
 open System.Collections.Generic
 open FSharp.Data
+open FSharp.Data.HttpRequestHeaders
 
 
 
@@ -213,6 +214,118 @@ module VismaEnterprise =
 
 
 VismaEnterprise.users()
+
+[<Literal>]
+let uName = "AARCOMY"
+[<Literal>]
+let pass = "abc1234"
+
+
+Http.RequestString
+    ( "http://hfk-app01:8090/enterprise_ws/secure/user/5836",
+    headers = [ BasicAuth uName pass ] )  
+
+
+let fullRequest httpMethod uriTail  (formValues : seq<string * string> option) =
+
+    let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/user/%s" uriTail
+
+    match formValues with
+    | Some values ->
+        Http.RequestString
+          ( requestString,
+            headers = [ BasicAuth uName pass ],
+            body = FormValues values,
+            httpMethod = httpMethod )    
+    | None ->
+        Http.RequestString
+          ( requestString,
+            headers = [ BasicAuth uName pass ],
+            httpMethod = httpMethod )
+            
+let request uriTail = fullRequest "GET" uriTail None
+
+let userXml vismaId = request vismaId
+
+let usersXml = request ""
+
+
+
+
+[<Literal>]
+let fullUser = 
+    "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\
+     <user email=\"email@hfk.no\" initials=\"12345\" userId=\"1234\" usertype=\"INTERNAL\" \
+       xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/user-1.1.xsd\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\
+       <groupMembership>\
+            <group id=\"1234\"/>\
+            <group id=\"4321\"/>\
+        </groupMembership>\
+        <name displayName=\"Nice Example Name\"/>\
+        <usernames username=\"NICE EXAMPLE NAME\">\
+            <alias username=\"NICNAME\"/>\
+            <alias username=\"12345\"/>\
+        </usernames>\
+     </user>"
+
+[<Literal>]
+let fullUserList = 
+    "<users xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/users-1.0.xsd\">
+         <user email=\"email@hfk.no\" initials=\"12345\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
+            <name displayName=\"Nice Example Name\"/>
+            <groupMembership>
+                <group id=\"1114\"/>
+                <group id=\"1850\"/>
+            </groupMembership>
+            <usernames username=\"NICE EXAMPLE NAME\">
+                <alias username=\"NICNAME\"/>
+                <alias username=\"12345\"/>
+            </usernames>
+        </user>
+         <user email=\"email@hfk.no\" initials=\"NICNAME\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
+            <name displayName=\"Nice Example Name\"/>
+            <usernames username=\"NICE EXAMPLE NAME\">
+                <alias username=\"NICNAME\"/>
+                <alias username=\"12345\"/>
+            </usernames>
+        </user>
+     </users>"
+
+type VeUser = XmlProvider<fullUser>
+type VeUsers = XmlProvider<fullUserList>
+
+
+let tUsers = VeUsers.Parse(usersXml)
+
+let mapToUser (user: VeUsers.User) : VismaEnterprise.User = 
+    { VismaId = user.UserId
+      Email = user.Email
+      WorkPhone = user.WorkPhone
+      MobilePhone = user.MobilePhone
+      Initials = user.Initials
+      Type = user.Usertype
+      GroupMembership = []
+      DisplayName = user.Name.DisplayName
+      UserName = user.Usernames.Username
+      UserNames = [] }
+
+for u in tUsers.Users do
+    printfn "%O" u.Name.DisplayName
+
+
+
+
+let tUser = VeUser.Parse(userXml "5836")
+for n in tUser.Usernames.Alias do
+    printf "%s" n.Username.Value
+
+
+
+    // Wrap the service call
+    // start generating URL strings (with optional params)
+    // Generate a whole VE user (XML type provide)
+    // Update a single user
+    // Update a single user with sub fields n stuff (ie aliases)
 
 
 
