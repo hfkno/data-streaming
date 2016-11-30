@@ -44,13 +44,13 @@ open System.Collections.Generic
 open FSharp.Data
 open FSharp.Data.HttpRequestHeaders
 
-
-
-
-
 // TODO: create internal documentation in CMDB with the details
+
 // TODO: create a credentials solution... Passwords should not be stored in project files...
 
+// TODO: Find ouut from VISMA if there is a way to update the display name... It seems not.  Currently disabled in the "Update" functionality
+
+// TODO: run through the UserNames usage in the update routine and the change comparison routine - ensure that everybody has their employee ID and their user name as an alias, if not then add!
 
 
 (*** define: utility ***)
@@ -71,15 +71,19 @@ module ActiveDirectory =
         Email : string
         IsActive : bool
         WorkPhone : string
+        FirstName : string
+        LastName : string
         Other : string }
     with 
         static member Default = 
           { EmployeeId = "-1"
-            DisplayName = "Unknown"
+            DisplayName = "Unknown User"
             Account = ""
             Email = "unknown@example.com"
             IsActive = false
             WorkPhone = ""
+            FirstName = "Unknown"
+            LastName = "User"
             Other = "" }
 
     /// Determines if a user account is active or not at the current moment
@@ -118,9 +122,15 @@ module ActiveDirectory =
                         Account = user.SamAccountName
                         IsActive = user |> isActive
                         WorkPhone = user.VoiceTelephoneNumber
+                        FirstName = user.GivenName
+                        LastName = user.Surname
                         Other = "" } }
 
-    /// Yields all users
+    /// Yields all users - quite slow on occasion...
+    ///     Performance info:
+    //          Real: 00:00:36.172, CPU: 00:00:08.640, GC gen0: 15, gen1: 7, gen2: 0
+    //          Real: 00:00:29.275, CPU: 00:00:07.796, GC gen0: 15, gen1: 2, gen2: 0
+    //          Real: 00:00:30.239, CPU: 00:00:09.000, GC gen0: 15, gen1: 8, gen2: 0
     let users () = findUsersMatching "*"
 
     /// Yields users matching the provided name pattern
@@ -311,23 +321,25 @@ module VismaEnterprise =
 
         let putContent action message = safeAction (fun () -> action |> put) message
 
-        let setEmail emailType userId email =
+        let setEmailType emailType userId email =
             putContent
-                (sprintf "%s/email/%s/%s" userId emailType email)
+                (sprintf "%i/email/%s/%s" userId emailType email)
                 (sprintf "Email address '%s' in use, could not update user" email)
+
+        let setEmail userId email = setEmailType "WORK" userId email
             
         let setPhone phoneType userId number = 
-            sprintf "%s/phone/%s/%s" userId phoneType number |> put
+            sprintf "%i/phone/%s/%s" userId phoneType number |> put
         let setMobile = setPhone "MOBILE"
         let setWorkPhone = setPhone "WORK"
 
         let setInitials userId initials =
             putContent
-                (sprintf "%s/initials/%s" userId initials)
+                (sprintf "%i/initials/%s" userId initials)
                 (sprintf "Initials cannot be changed, could not update user to initials '%s'" initials)
 
         let addAlias userId alias =
-            fullRequest "POST" (sprintf "%s/username" userId) (Some [ "user", alias ]) |> ignore
+            fullRequest "POST" (sprintf "%i/username" userId) (Some [ "user", alias ]) |> ignore
 
 //        // Did not delete aliases as expected... :
 //        let deleteAlias userId alias =
@@ -342,7 +354,10 @@ module VismaEnterprise =
 
         /// Deletes the users alias, OR sets the user passive if the alias is the same as the users initials 
         let deleteUser userId initialsOrAlias =
-            simpleRequest "DELETE" (sprintf "%s/username/%s" userId initialsOrAlias)
+            simpleRequest "DELETE" (sprintf "%i/username/%s" userId initialsOrAlias)
+
+        /// Deletes the users alias, OR sets the user passive if the alias is the same as the users initials 
+        let deactivateUser userId initialsOrAlias = deleteUser userId initialsOrAlias
 
     let users () = WebService.users
 
@@ -354,7 +369,7 @@ module Integration =
     type UpdateAction = | Ignore | Add | Update | Deactivate
 
     [<AutoOpen>]
-    module private Imp =
+    module Actions =
 
         let (|IsUnregistered|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
         let (|IsMissing|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
@@ -396,12 +411,12 @@ module Integration =
 
             let unregisteredAdUsers =
                 query { for adu in adUsers do
-                        where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
+                        where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId))) 
                         select (adu, VismaEnterprise.User.Default) }
 
             let veUsersNotInAd =
                     query { for vu in veUsers do
-                            where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
+                            where (not <| adUsers.Any(fun adu -> adu.EmployeeId = vu.Initials || adu.Account.ToUpper() = vu.Initials))
                             select (ActiveDirectory.User.Default, vu) }
 
             matched |> union unregisteredAdUsers |> union veUsersNotInAd
@@ -410,6 +425,9 @@ module Integration =
         let matchActions (users : (ActiveDirectory.User * VismaEnterprise.User) seq) =
             seq { for u in users do yield (u |> action, u) }
 
+        let processk = 0
+            
+
     /// Returns all employee actions after comparing the provided sets of users
     let employeeActionsVerbose ad ve = matches ad ve |> matchActions
 
@@ -417,6 +435,23 @@ module Integration =
     let employeeActions ad ve = 
         employeeActionsVerbose ad ve 
         |> Seq.filter (fun (a, t) -> a <> Ignore)
+
+        
+    let processEmployeeActions (actions : (UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) seq) =
+
+        let handler ((action, (au, vu)) : UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) = 
+            match action with
+            | Ignore -> ()
+            | Add -> VismaEnterprise.WebService.createUser au.EmployeeId (au.Account.ToUpper()) au.FirstName au.LastName (au.Account.ToUpper()) au.Email |> ignore
+            | Update -> 
+                if au.Email <> vu.Email         then VismaEnterprise.WebService.setEmail vu.VismaId au.Email |> ignore
+                if au.WorkPhone <> vu.WorkPhone then VismaEnterprise.WebService.setWorkPhone vu.VismaId au.WorkPhone |> ignore
+                //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no name editing support
+                
+            | Deactivate -> VismaEnterprise.WebService.deactivateUser vu.VismaId vu.Initials |> ignore
+
+        actions |> Seq.map handler
+
 
 
 let testVe = 
@@ -441,10 +476,19 @@ let testAd =
 Integration.employeeActionsVerbose testAd testVe |> Seq.toList
 Integration.employeeActions testAd testVe
 
-let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
-let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
+#time
+let rawr = 123
+#time
 
-adUsers  |> Seq.toList |> List.length
+
+#time
+let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
+let adlist = adUsers  |> Seq.toList
+#time
+adlist |> List.length
+
+
+let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
 veUsers |> List.length
 
 let aus = query { for a in adUsers do
@@ -465,7 +509,18 @@ let ves = query { for a in veUsers do
 
 
 Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
-Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), c.Initials, c.DisplayName) |> Seq.toList
+Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), c.Initials, c.DisplayName) |> Seq.toList 
+let arne = Integration.employeeActions aus ves |> Seq.filter (fun (a, (b,c)) -> c.Initials = "ARNNESS") |> Seq.toList |> Seq.head |> snd
+
+query { for adu in aus do
+        join vu in ves on (adu.Account.ToUpper() = vu.Initials)
+        select (adu, vu) } 
+    |> Seq.map (Integration.Actions.action)
+    |> Seq.toList
+
+
+
+
 
 
 
