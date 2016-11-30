@@ -255,7 +255,7 @@ module VismaEnterprise =
             [<Literal>]
             let pass = "abc1234"
 
-            let fullRequest httpMethod uriTail  (formValues : seq<string * string> option) =
+            let fullRequest httpMethod uriTail  (formValues : (string * string) list option) =
                 let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/user/%s" uriTail
                 match formValues with
                 | Some values ->
@@ -317,9 +317,27 @@ module VismaEnterprise =
             putContent
                 (sprintf "%s/initials/%s" userId initials)
                 (sprintf "Initials cannot be changed, could not update user to initials '%s'" initials)
-    
+
+        let addAlias userId alias =
+            fullRequest "POST" (sprintf "%s/username" userId) (Some [ "user", alias ]) |> ignore
+
+        let deleteAlias userId alias =
+            simpleRequest "DELETE" (sprintf "%s/username/HFK/%s" userId alias) |> ignore
+
+        let createUser employeeId userName firstName lastName initials email =
+            let urlTail = sprintf "new/firstname/%s/lastname/%s/initials/%s/workemail/%s" firstName lastName initials email
+            let formValues = [ "alias", (sprintf "%s;%s" employeeId userName ) ]
+            fullRequest "POST" urlTail (Some formValues)
+
+        let 
+
     let users () = WebService.users
 
+
+VismaEnterprise.WebService.createUser "90999" "NNNRRRR" "Fic" "Ticious" "NNNRRRR" "test@example.no"
+
+VismaEnterprise.WebService.addAlias "8054" "zoobaboo"
+VismaEnterprise.WebService.deleteAlias "8054" "ZOOBABOO"
 
 VismaEnterprise.WebService.setInitials "8054" "SIREN" // initials="13526"
 VismaEnterprise.WebService.setPhone "WORK" "5836" "+4747876967"
