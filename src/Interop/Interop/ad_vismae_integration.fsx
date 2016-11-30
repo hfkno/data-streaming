@@ -39,11 +39,10 @@ open System
 open System.DirectoryServices
 open System.DirectoryServices.AccountManagement
 open System.Linq
+open System.Net
 open System.Collections.Generic
 open FSharp.Data
 open FSharp.Data.HttpRequestHeaders
-
-
 
 
 
@@ -205,107 +204,129 @@ module VismaEnterprise =
 
     module WebService =
         
-        [<Literal>]
-        let fullUser = 
-            "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\
-             <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" \
-               xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/user-1.1.xsd\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\
-               <groupMembership>\
-                    <group id=\"1234\"/>\
-                    <group id=\"4321\"/>\
-                </groupMembership>\
-                <name displayName=\"Nice Example Name\"/>\
-                <usernames username=\"NICE EXAMPLE NAME\">\
-                    <alias username=\"NICNAME\"/>\
-                    <alias username=\"12345\"/>\
-                </usernames>\
-             </user>"
+        [<AutoOpen>]
+        module Endpoint =
 
-        [<Literal>]
-        let fullUserList = 
-            "<users xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/users-1.0.xsd\">
-                 <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
-                    <name displayName=\"Nice Example Name\"/>
-                    <groupMembership>
-                        <group id=\"1114\"/>
-                        <group id=\"1850\"/>
-                    </groupMembership>
-                    <usernames username=\"NICE EXAMPLE NAME\">
-                        <alias username=\"NICNAME\"/>
-                        <alias username=\"s12345\"/>
-                    </usernames>
-                </user>
-                 <user email=\"email@hfk.no\" initials=\"NICNAME\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
-                    <name displayName=\"Nice Example Name\"/>
-                    <groupMembership>
-                        <group id=\"1114\"/>
-                        <group id=\"1850\"/>
-                    </groupMembership>
-                    <usernames username=\"NICE EXAMPLE NAME\">
-                        <alias username=\"NICNAME\"/>
-                        <alias username=\"s12345\"/>
-                    </usernames>
-                </user>
-             </users>"
+            [<Literal>]
+            let fullUser = 
+                "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\
+                 <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" \
+                   xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/user-1.1.xsd\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\
+                   <groupMembership>\
+                        <group id=\"1234\"/>\
+                        <group id=\"4321\"/>\
+                    </groupMembership>\
+                    <name displayName=\"Nice Example Name\"/>\
+                    <usernames username=\"NICE EXAMPLE NAME\">\
+                        <alias username=\"NICNAME\"/>\
+                        <alias username=\"12345\"/>\
+                    </usernames>\
+                 </user>"
 
-        [<Literal>]
-        let uName = "AARCOMY"
-        [<Literal>]
-        let pass = "abc1234"
+            [<Literal>]
+            let fullUserList = 
+                "<users xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/users-1.0.xsd\">
+                     <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
+                        <name displayName=\"Nice Example Name\"/>
+                        <groupMembership>
+                            <group id=\"1114\"/>
+                            <group id=\"1850\"/>
+                        </groupMembership>
+                        <usernames username=\"NICE EXAMPLE NAME\">
+                            <alias username=\"NICNAME\"/>
+                            <alias username=\"s12345\"/>
+                        </usernames>
+                    </user>
+                     <user email=\"email@hfk.no\" initials=\"NICNAME\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
+                        <name displayName=\"Nice Example Name\"/>
+                        <groupMembership>
+                            <group id=\"1114\"/>
+                            <group id=\"1850\"/>
+                        </groupMembership>
+                        <usernames username=\"NICE EXAMPLE NAME\">
+                            <alias username=\"NICNAME\"/>
+                            <alias username=\"s12345\"/>
+                        </usernames>
+                    </user>
+                 </users>"
 
-        Http.RequestString
-            ( "http://hfk-app01:8090/enterprise_ws/secure/user/5836",
-            headers = [ BasicAuth uName pass ] )  
+            [<Literal>]
+            let uName = "AARCOMY"
+            [<Literal>]
+            let pass = "abc1234"
 
-        let fullRequest httpMethod uriTail  (formValues : seq<string * string> option) =
-            let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/user/%s" uriTail
-            match formValues with
-            | Some values ->
-                Http.RequestString
-                  ( requestString,
-                    headers = [ BasicAuth uName pass ],
-                    body = FormValues values,
-                    httpMethod = httpMethod )    
-            | None ->
-                Http.RequestString
-                  ( requestString,
-                    headers = [ BasicAuth uName pass ],
-                    httpMethod = httpMethod )
+            Http.RequestString
+                ( "http://hfk-app01:8090/enterprise_ws/secure/user/5836",
+                headers = [ BasicAuth uName pass ] )
 
-        let simpleRequest httpMethod uriTail = fullRequest httpMethod uriTail None
-        let request uriTail = fullRequest "GET" uriTail None
+            
 
-        type VeUser = XmlProvider<fullUser>
-        type VeUsers = XmlProvider<fullUserList>
+            let fullRequest httpMethod uriTail  (formValues : seq<string * string> option) =
+                let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/user/%s" uriTail
+                match formValues with
+                | Some values ->
+                    Http.RequestString
+                      ( requestString,
+                        headers = [ BasicAuth uName pass ],
+                        body = FormValues values,
+                        httpMethod = httpMethod )    
+                | None ->
+                    Http.RequestString
+                      ( requestString,
+                        headers = [ BasicAuth uName pass ],
+                        httpMethod = httpMethod )
 
-        let toUser (user: VeUsers.User) : User = 
-            { VismaId = user.UserId
-              Email = user.Email
-              WorkPhone = user.WorkPhone
-              MobilePhone = user.MobilePhone
-              Initials = user.Initials
-              Type = user.Usertype
-              GroupMembership = [ for g in user.GroupMemberships do yield { Group.Id = g.Id } ]
-              DisplayName = user.Name.DisplayName
-              UserName = user.Usernames.Username
-              UserNames = [ for a in user.Usernames.Alias do yield Username.Alias a.Username ] }
+            let request uriTail = fullRequest "GET" uriTail None
+            let simpleRequest httpMethod uriTail = fullRequest httpMethod uriTail None
+            let put = simpleRequest "PUT"
+
+            type VeUser = XmlProvider<fullUser>
+            type VeUsers = XmlProvider<fullUserList>
+
+            let toUser (user: VeUsers.User) : User = 
+                { VismaId = user.UserId
+                  Email = user.Email
+                  WorkPhone = user.WorkPhone
+                  MobilePhone = user.MobilePhone
+                  Initials = user.Initials
+                  Type = user.Usertype
+                  GroupMembership = [ for g in user.GroupMemberships do yield { Group.Id = g.Id } ]
+                  DisplayName = user.Name.DisplayName
+                  UserName = user.Usernames.Username
+                  UserNames = [ for a in user.Usernames.Alias do yield Username.Alias a.Username ] }
 
         let userXml vismaId = request vismaId
         let usersXml = request ""
         let users = (usersXml |> VeUsers.Parse).Users |> Seq.map toUser
 
-        let setPhone userId phoneType number =
-            let uriTail = sprintf "%s/phone/%s/%s" userId phoneType number
-            simpleRequest "PUT" uriTail
+        let doPut action message =
+            try
+                action ()
+            with
+            // The webservice returns "bad request" (code 400) to indicate an internal server error
+            | :? WebException as we 
+                when ((we.Response :?> HttpWebResponse).StatusCode = HttpStatusCode.BadRequest) -> 
+                    failwith message
 
-        let 
+        let setEmail emailType userId email =
+            let putEmail () = sprintf "%s/email/%s/%s" userId emailType email |> put
+            doPut putEmail (sprintf "Email address '%s' in use, could not update user" email) |> ignore
+            
+        let setPhone phoneType userId number =
+            sprintf "%s/phone/%s/%s" userId phoneType number
+            |> put
+        let setMobile = setPhone "MOBILE"
+        let setWorkPhone = setPhone "WORK"
+
+        let setInitials userId initials = sprintf "%s/initials/%s" userId initials |> put
     
 
     let users () = WebService.users
 
 
 
-VismaEnterprise.WebService.setPhone "5836" "MOBILE" "+4747876967"
+VismaEnterprise.WebService.setPhone "WORK" "5836" "+4747876967"
+VismaEnterprise.WebService.setEmail "WORK" "5836" "Aaron.Winston.Comyn@hfk.no"
 
 let tUsers = VismaEnterprise.users() |> Seq.toList
 
