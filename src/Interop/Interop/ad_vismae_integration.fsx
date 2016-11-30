@@ -167,12 +167,14 @@ module ActiveDirectory =
 
 (*** define: webservice ***)
 
+/// Visma Enterprise operations and management
 module VismaEnterprise =
 
     type Group = { Id : int }
 
     type Username = | DomainUser of string | Alias of string
 
+    /// Visma Enterprise User information
     type User = 
       { VismaId : int
         Email : string
@@ -197,152 +199,109 @@ module VismaEnterprise =
             UserName = ""
             UserNames = [] }
 
-    let users () =
-        // GET - /user
-        // read from service
-        // translate
-        // return:
-        [ { User.Default with DisplayName = "One" }
-          { User.Default with DisplayName = "Two" }
-          { User.Default with DisplayName = "Three" }
-          { User.Default with DisplayName = "Four" }
-          { User.Default with DisplayName = "Five" }
-        ] |> List.toSeq
+
+    module private WebService =
         
+        [<Literal>]
+        let fullUser = 
+            "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\
+             <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" \
+               xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/user-1.1.xsd\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\
+               <groupMembership>\
+                    <group id=\"1234\"/>\
+                    <group id=\"4321\"/>\
+                </groupMembership>\
+                <name displayName=\"Nice Example Name\"/>\
+                <usernames username=\"NICE EXAMPLE NAME\">\
+                    <alias username=\"NICNAME\"/>\
+                    <alias username=\"12345\"/>\
+                </usernames>\
+             </user>"
 
+        [<Literal>]
+        let fullUserList = 
+            "<users xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/users-1.0.xsd\">
+                 <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
+                    <name displayName=\"Nice Example Name\"/>
+                    <groupMembership>
+                        <group id=\"1114\"/>
+                        <group id=\"1850\"/>
+                    </groupMembership>
+                    <usernames username=\"NICE EXAMPLE NAME\">
+                        <alias username=\"NICNAME\"/>
+                        <alias username=\"s12345\"/>
+                    </usernames>
+                </user>
+                 <user email=\"email@hfk.no\" initials=\"NICNAME\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
+                    <name displayName=\"Nice Example Name\"/>
+                    <groupMembership>
+                        <group id=\"1114\"/>
+                        <group id=\"1850\"/>
+                    </groupMembership>
+                    <usernames username=\"NICE EXAMPLE NAME\">
+                        <alias username=\"NICNAME\"/>
+                        <alias username=\"s12345\"/>
+                    </usernames>
+                </user>
+             </users>"
 
+        [<Literal>]
+        let uName = "AARCOMY"
+        [<Literal>]
+        let pass = "abc1234"
 
-
-VismaEnterprise.users()
-
-[<Literal>]
-let uName = "AARCOMY"
-[<Literal>]
-let pass = "abc1234"
-
-
-Http.RequestString
-    ( "http://hfk-app01:8090/enterprise_ws/secure/user/5836",
-    headers = [ BasicAuth uName pass ] )  
-
-
-let fullRequest httpMethod uriTail  (formValues : seq<string * string> option) =
-
-    let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/user/%s" uriTail
-
-    match formValues with
-    | Some values ->
         Http.RequestString
-          ( requestString,
-            headers = [ BasicAuth uName pass ],
-            body = FormValues values,
-            httpMethod = httpMethod )    
-    | None ->
-        Http.RequestString
-          ( requestString,
-            headers = [ BasicAuth uName pass ],
-            httpMethod = httpMethod )
-            
-let request uriTail = fullRequest "GET" uriTail None
+            ( "http://hfk-app01:8090/enterprise_ws/secure/user/5836",
+            headers = [ BasicAuth uName pass ] )  
 
-let userXml vismaId = request vismaId
+        let fullRequest httpMethod uriTail  (formValues : seq<string * string> option) =
+            let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/user/%s" uriTail
+            match formValues with
+            | Some values ->
+                Http.RequestString
+                  ( requestString,
+                    headers = [ BasicAuth uName pass ],
+                    body = FormValues values,
+                    httpMethod = httpMethod )    
+            | None ->
+                Http.RequestString
+                  ( requestString,
+                    headers = [ BasicAuth uName pass ],
+                    httpMethod = httpMethod )
+                    
+        type VeUser = XmlProvider<fullUser>
+        type VeUsers = XmlProvider<fullUserList>
 
-let usersXml = request ""
+        let toUser (user: VeUsers.User) : User = 
+            { VismaId = user.UserId
+              Email = user.Email
+              WorkPhone = user.WorkPhone
+              MobilePhone = user.MobilePhone
+              Initials = user.Initials
+              Type = user.Usertype
+              GroupMembership = [ for g in user.GroupMemberships do yield { Group.Id = g.Id } ]
+              DisplayName = user.Name.DisplayName
+              UserName = user.Usernames.Username
+              UserNames = [ for a in user.Usernames.Alias do yield Username.Alias a.Username ] }
 
+        let request uriTail = fullRequest "GET" uriTail None
+        let userXml vismaId = request vismaId
+        let usersXml = request ""
+        let users = (usersXml |> VeUsers.Parse).Users |> Seq.map toUser
+    
 
-
-
-[<Literal>]
-let fullUser = 
-    "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\
-     <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" \
-       xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/user-1.1.xsd\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\
-       <groupMembership>\
-            <group id=\"1234\"/>\
-            <group id=\"4321\"/>\
-        </groupMembership>\
-        <name displayName=\"Nice Example Name\"/>\
-        <usernames username=\"NICE EXAMPLE NAME\">\
-            <alias username=\"NICNAME\"/>\
-            <alias username=\"12345\"/>\
-        </usernames>\
-     </user>"
-
-[<Literal>]
-let fullUserList = 
-    "<users xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/users-1.0.xsd\">
-         <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
-            <name displayName=\"Nice Example Name\"/>
-            <groupMembership>
-                <group id=\"1114\"/>
-                <group id=\"1850\"/>
-            </groupMembership>
-            <usernames username=\"NICE EXAMPLE NAME\">
-                <alias username=\"NICNAME\"/>
-                <alias username=\"s12345\"/>
-            </usernames>
-        </user>
-         <user email=\"email@hfk.no\" initials=\"NICNAME\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
-            <name displayName=\"Nice Example Name\"/>
-            <groupMembership>
-                <group id=\"1114\"/>
-                <group id=\"1850\"/>
-            </groupMembership>
-            <usernames username=\"NICE EXAMPLE NAME\">
-                <alias username=\"NICNAME\"/>
-                <alias username=\"s12345\"/>
-            </usernames>
-        </user>
-     </users>"
-
-type VeUser = XmlProvider<fullUser>
-type VeUsers = XmlProvider<fullUserList>
+    let users () = WebService.users
 
 
-let tUsers = VeUsers.Parse(usersXml)
+let tUsers = VismaEnterprise.users() |> Seq.toList
 
-let mapToUser (user: VeUsers.User) : VismaEnterprise.User = 
-    { VismaId = user.UserId
-      Email = user.Email
-      WorkPhone = user.WorkPhone
-      MobilePhone = user.MobilePhone
-      Initials = user.Initials
-      Type = user.Usertype
-      GroupMembership = [ for g in user.GroupMemberships do yield { VismaEnterprise.Group.Id = g.Id } ]
-      DisplayName = user.Name.DisplayName
-      UserName = user.Usernames.Username
-      UserNames = [ for a in user.Usernames.Alias do yield VismaEnterprise.Username.Alias a.Username ] }
+for u in tUsers do
+    printfn "%O" u.DisplayName
 
 
 
-
-tUsers.Users |> Seq.map mapToUser
-
-
-for u in tUsers.Users do
-    printfn "%O" u.Name.DisplayName
-
-let x = [ for i in 1 .. 10 do yield i ]
-
-
-let tUser = VeUser.Parse(userXml "5836")
-for n in tUser.Usernames.Alias do
-    printf "%s" n.Username.Value
-
-
-//mapToUser tUser
-
-
-
-    // Wrap the service call
-    // start generating URL strings (with optional params)
-    // Generate a whole VE user (XML type provide)
     // Update a single user
     // Update a single user with sub fields n stuff (ie aliases)
-
-
-
-
 
 
 
