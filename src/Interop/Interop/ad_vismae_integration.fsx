@@ -255,35 +255,29 @@ module VismaEnterprise =
             [<Literal>]
             let pass = "abc1234"
 
-            Http.RequestString
-                ( "http://hfk-app01:8090/enterprise_ws/secure/user/5836",
-                headers = [ BasicAuth uName pass ] )
-
-            
-
             let fullRequest httpMethod uriTail  (formValues : seq<string * string> option) =
                 let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/user/%s" uriTail
                 match formValues with
                 | Some values ->
                     Http.RequestString
                       ( requestString,
+                        httpMethod = httpMethod,
                         headers = [ BasicAuth uName pass ],
-                        body = FormValues values,
-                        httpMethod = httpMethod )    
+                        body = FormValues values )
                 | None ->
                     Http.RequestString
                       ( requestString,
-                        headers = [ BasicAuth uName pass ],
-                        httpMethod = httpMethod )
+                        httpMethod = httpMethod,
+                        headers = [ BasicAuth uName pass ] )
 
             let request uriTail = fullRequest "GET" uriTail None
             let simpleRequest httpMethod uriTail = fullRequest httpMethod uriTail None
             let put = simpleRequest "PUT"
 
-            type VeUser = XmlProvider<fullUser>
-            type VeUsers = XmlProvider<fullUserList>
+            type ServiceUser  = XmlProvider<fullUser>
+            type ServiceUsers = XmlProvider<fullUserList>
 
-            let toUser (user: VeUsers.User) : User = 
+            let toUser (user: ServiceUsers.User) : User = 
                 { VismaId = user.UserId
                   Email = user.Email
                   WorkPhone = user.WorkPhone
@@ -297,34 +291,37 @@ module VismaEnterprise =
 
         let userXml vismaId = request vismaId
         let usersXml = request ""
-        let users = (usersXml |> VeUsers.Parse).Users |> Seq.map toUser
+        let users = 
+            (usersXml |> ServiceUsers.Parse)
+                .Users 
+                |> Seq.map toUser
 
-        let doPut action message =
+        let putContent action message =
             try
-                action ()
+                action |> put
             with
             // The webservice returns "bad request" (code 400) to indicate an internal server error
-            | :? WebException as we 
-                when ((we.Response :?> HttpWebResponse).StatusCode = HttpStatusCode.BadRequest) -> 
-                    failwith message
+            | :? WebException as webEx -> failwith message
 
         let setEmail emailType userId email =
-            let putEmail () = sprintf "%s/email/%s/%s" userId emailType email |> put
-            doPut putEmail (sprintf "Email address '%s' in use, could not update user" email) |> ignore
+            putContent
+                (sprintf "%s/email/%s/%s" userId emailType email)
+                (sprintf "Email address '%s' in use, could not update user" email)
             
-        let setPhone phoneType userId number =
-            sprintf "%s/phone/%s/%s" userId phoneType number
-            |> put
+        let setPhone phoneType userId number = 
+            sprintf "%s/phone/%s/%s" userId phoneType number |> put
         let setMobile = setPhone "MOBILE"
         let setWorkPhone = setPhone "WORK"
 
-        let setInitials userId initials = sprintf "%s/initials/%s" userId initials |> put
+        let setInitials userId initials =
+            putContent
+                (sprintf "%s/initials/%s" userId initials)
+                (sprintf "Initials cannot be changed, could not update user to initials '%s'" initials)
     
-
     let users () = WebService.users
 
 
-
+VismaEnterprise.WebService.setInitials "8054" "SIREN" // initials="13526"
 VismaEnterprise.WebService.setPhone "WORK" "5836" "+4747876967"
 VismaEnterprise.WebService.setEmail "WORK" "5836" "Aaron.Winston.Comyn@hfk.no"
 
