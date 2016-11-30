@@ -64,6 +64,7 @@ module ActiveDirectory =
         Account : string
         Email : string
         IsActive : bool
+        WorkPhone : string
         Other : string }
     with 
         static member Default = 
@@ -72,6 +73,7 @@ module ActiveDirectory =
             Account = ""
             Email = "unknown@example.com"
             IsActive = false
+            WorkPhone = ""
             Other = "" }
 
     /// Determines if a user account is active or not at the current moment
@@ -109,6 +111,7 @@ module ActiveDirectory =
                         Email = user.EmailAddress
                         Account = user.SamAccountName
                         IsActive = user |> isActive
+                        WorkPhone = user.VoiceTelephoneNumber
                         Other = "" } }
 
     /// Yields all users
@@ -268,7 +271,10 @@ module VismaEnterprise =
                   ( requestString,
                     headers = [ BasicAuth uName pass ],
                     httpMethod = httpMethod )
-                    
+
+        let simpleRequest httpMethod uriTail = fullRequest httpMethod uriTail None
+        let request uriTail = fullRequest "GET" uriTail None
+
         type VeUser = XmlProvider<fullUser>
         type VeUsers = XmlProvider<fullUserList>
 
@@ -284,10 +290,14 @@ module VismaEnterprise =
               UserName = user.Usernames.Username
               UserNames = [ for a in user.Usernames.Alias do yield Username.Alias a.Username ] }
 
-        let request uriTail = fullRequest "GET" uriTail None
+        
         let userXml vismaId = request vismaId
         let usersXml = request ""
         let users = (usersXml |> VeUsers.Parse).Users |> Seq.map toUser
+
+        let setPhone userId phoneType number =
+            let uriTail = sprintf "%s/phone/%s/%s" userId phoneType number
+            simpleRequest "PUT" uriTail
     
 
     let users () = WebService.users
@@ -316,21 +326,26 @@ module Integration =
     [<AutoOpen>]
     module private Imp =
 
-        let (|IsNew|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
+        let (|IsUnregistered|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
         let (|IsMissing|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
-        let (|IsExpired|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
+        let (|IsInactive|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
 
         let isChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
-            not (adu.DisplayName = vu.DisplayName       
+            not (adu.DisplayName = vu.DisplayName 
                  //&& adu.Account = vu. // TODO: check account name changes against the VISMA user changes
-                                        // TODO: get "workphone" and other info into the integration
+
+                                        // TODO: check correct number of aliases
+
+                                        // TODO: get "workphone" and mobile phone info into the integration
+                                        
+                 && adu.EmployeeId = vu.Initials
                  && adu.Email = vu.Email )
 
         let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
             match adu, vu with
-            | IsMissing(adu), vu -> Deactivate
-            | IsExpired(adu), vu -> Deactivate
-            | adu, IsNew(vu) -> Add
+            | IsMissing (adu), vu -> Deactivate
+            | IsInactive(adu), vu -> Deactivate
+            | adu, IsUnregistered(vu) -> Add
             | user when user |> isChanged -> Update
             | _ -> Ignore
 
@@ -369,11 +384,11 @@ module Integration =
             seq { for u in users do yield (u |> action, u) }
 
     /// Returns all employee actions after comparing the provided sets of users
-    let allEmployeeActions ad ve = matches ad ve |> matchActions
+    let employeeActionsVerbose ad ve = matches ad ve |> matchActions
 
     /// Returns necessary actions and employees to synch AD and Visma Enterprise
     let employeeActions ad ve = 
-        allEmployeeActions ad ve 
+        employeeActionsVerbose ad ve 
         |> Seq.filter (fun (a, t) -> a <> Ignore)
 
 
@@ -396,24 +411,50 @@ let testAd =
         ] |> List.toSeq
 
 
-Integration.allEmployeeActions testAd testVe
+Integration.employeeActionsVerbose testAd testVe |> Seq.toList
 Integration.employeeActions testAd testVe
 
 
 
 
-
-// Mock webservice
-// Get user lists
 // Scheduling
 // Health reporting
 // etc
 
-let adUsers = ActiveDirectory.users() |> Seq.toList |> Seq.take(20)
-let veUsers = VismaEnterprise.users() |> Seq.toList
+let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
+let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
+
+adUsers |> List.length
+veUsers |> List.length
+
+let aus = query { for a in adUsers do
+                  //where (a.DisplayName.Contains("Andre"))
+                  sortBy a.EmployeeId
+                  select a } 
+                  //|> Seq.take(150) 
+                  |> Seq.toList
+
+
+let ves = query { for a in veUsers do
+                  //where (a.DisplayName.Contains("Andre"))
+                  sortBy a.Initials
+                  select a } 
+                  //|> Seq.take(150) 
+                  |> Seq.toList
+
+
+
+Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
+Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
+
+
+
 
 Integration.employeeActions adUsers veUsers
-let ff = Integration.allEmployeeActions adUsers veUsers |> Seq.toList
+let ff = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList
+
+
+
 
 
 
@@ -424,6 +465,7 @@ let users = ActiveDirectory.users() |> Seq.toList
 
 // Print all users
 for u in users do printfn "%A\r\n" u
+
 
 
 
