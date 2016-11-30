@@ -46,6 +46,13 @@ open FSharp.Data.HttpRequestHeaders
 
 
 
+
+
+// TODO: create internal documentation in CMDB with the details
+// TODO: create a credentials solution... Passwords should not be stored in project files...
+
+
+
 (*** define: utility ***)
 
 let union a b = (a:IEnumerable<'a>).Union(b)
@@ -201,7 +208,6 @@ module VismaEnterprise =
             UserName = ""
             UserNames = [] }
 
-
     module WebService =
         
         [<AutoOpen>]
@@ -296,12 +302,14 @@ module VismaEnterprise =
                 .Users 
                 |> Seq.map toUser
 
-        let putContent action message =
+        let safeAction action errorMessage =
             try
-                action |> put
+                action ()
             with
             // The webservice returns "bad request" (code 400) to indicate an internal server error
-            | :? WebException as webEx -> failwith message
+            | :? WebException as webEx -> failwith errorMessage
+
+        let putContent action message = safeAction (fun () -> action |> put) message
 
         let setEmail emailType userId email =
             putContent
@@ -321,27 +329,27 @@ module VismaEnterprise =
         let addAlias userId alias =
             fullRequest "POST" (sprintf "%s/username" userId) (Some [ "user", alias ]) |> ignore
 
-        let deleteAlias userId alias =
-            simpleRequest "DELETE" (sprintf "%s/username/HFK/%s" userId alias) |> ignore
+//        // Did not delete aliases as expected... :
+//        let deleteAlias userId alias =
+//            simpleRequest "DELETE" (sprintf "%s/username/alais/%s" userId alias) |> ignore
 
         let createUser employeeId userName firstName lastName initials email =
             let urlTail = sprintf "new/firstname/%s/lastname/%s/initials/%s/workemail/%s" firstName lastName initials email
             let formValues = [ "alias", (sprintf "%s;%s" employeeId userName ) ]
-            fullRequest "POST" urlTail (Some formValues)
+            safeAction 
+                (fun () -> fullRequest "POST" urlTail (Some formValues)) 
+                (sprintf "Could not create user '%s'" initials)
 
-        let 
+        /// Deletes the users alias, OR sets the user passive if the alias is the same as the users initials 
+        let deleteUser userId initialsOrAlias =
+            simpleRequest "DELETE" (sprintf "%s/username/%s" userId initialsOrAlias)
 
     let users () = WebService.users
 
 
 VismaEnterprise.WebService.createUser "90999" "NNNRRRR" "Fic" "Ticious" "NNNRRRR" "test@example.no"
+VismaEnterprise.WebService.deleteUser "21585" "NNNRRRR"
 
-VismaEnterprise.WebService.addAlias "8054" "zoobaboo"
-VismaEnterprise.WebService.deleteAlias "8054" "ZOOBABOO"
-
-VismaEnterprise.WebService.setInitials "8054" "SIREN" // initials="13526"
-VismaEnterprise.WebService.setPhone "WORK" "5836" "+4747876967"
-VismaEnterprise.WebService.setEmail "WORK" "5836" "Aaron.Winston.Comyn@hfk.no"
 
 let tUsers = VismaEnterprise.users() |> Seq.toList
 
@@ -349,12 +357,6 @@ for u in tUsers do
     printfn "%O" u.DisplayName
 
 
-
-    // Update a single user
-    // Update a single user with sub fields n stuff (ie aliases)
-
-
-   // TODO: create internal documentation in CMDB with the details
 
 
 (*** define: synch ***)
@@ -393,30 +395,26 @@ module Integration =
         let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
 
             let accountNameMatches =
-                query {
-                    for adu in adUsers do
-                    join vu in veUsers on (adu.Account = vu.Initials)
-                    select (adu, vu) }
+                query { for adu in adUsers do
+                        join vu in veUsers on (adu.Account = vu.Initials)
+                        select (adu, vu) }
 
             let employeeIdMatches =
-                query {
-                    for adu in adUsers do
-                    join vu in veUsers on (adu.EmployeeId = vu.Initials)
-                    select (adu, vu) }
+                query { for adu in adUsers do
+                        join vu in veUsers on (adu.EmployeeId = vu.Initials)
+                        select (adu, vu) }
 
             let matched = accountNameMatches |> union employeeIdMatches
 
             let unregisteredAdUsers =
-                query {
-                    for adu in adUsers do
-                    where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
-                    select (adu, VismaEnterprise.User.Default) }
+                query { for adu in adUsers do
+                        where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
+                        select (adu, VismaEnterprise.User.Default) }
 
             let veUsersNotInAd =
-                    query { 
-                        for vu in veUsers do
-                        where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
-                        select (ActiveDirectory.User.Default, vu) }
+                    query { for vu in veUsers do
+                            where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
+                            select (ActiveDirectory.User.Default, vu) }
 
             matched |> union unregisteredAdUsers |> union veUsersNotInAd
 
@@ -457,11 +455,6 @@ Integration.employeeActions testAd testVe
 
 
 
-
-// Scheduling
-// Health reporting
-// etc
-
 let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
 let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
 
@@ -495,19 +488,11 @@ Integration.employeeActions adUsers veUsers
 let ff = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList
 
 
-
-
-
-
 (*** define: list-users ***)
 
-// Get all users
+// Get and print all users
 let users = ActiveDirectory.users() |> Seq.toList
-
-// Print all users
 for u in users do printfn "%A\r\n" u
-
-
 
 
 let aadwag = ActiveDirectory.usersMatching("Arne*") |> Seq.toList
