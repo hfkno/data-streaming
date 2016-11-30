@@ -203,7 +203,7 @@ module VismaEnterprise =
             UserNames = [] }
 
 
-    module private WebService =
+    module WebService =
         
         [<Literal>]
         let fullUser = 
@@ -290,7 +290,6 @@ module VismaEnterprise =
               UserName = user.Usernames.Username
               UserNames = [ for a in user.Usernames.Alias do yield Username.Alias a.Username ] }
 
-        
         let userXml vismaId = request vismaId
         let usersXml = request ""
         let users = (usersXml |> VeUsers.Parse).Users |> Seq.map toUser
@@ -298,10 +297,15 @@ module VismaEnterprise =
         let setPhone userId phoneType number =
             let uriTail = sprintf "%s/phone/%s/%s" userId phoneType number
             simpleRequest "PUT" uriTail
+
+        let 
     
 
     let users () = WebService.users
 
+
+
+VismaEnterprise.WebService.setPhone "5836" "MOBILE" "+4747876967"
 
 let tUsers = VismaEnterprise.users() |> Seq.toList
 
@@ -314,7 +318,7 @@ for u in tUsers do
     // Update a single user with sub fields n stuff (ie aliases)
 
 
-
+   // TODO: create internal documentation in CMDB with the details
 
 
 (*** define: synch ***)
@@ -332,7 +336,8 @@ module Integration =
 
         let isChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
             not (adu.DisplayName = vu.DisplayName 
-                 //&& adu.Account = vu. // TODO: check account name changes against the VISMA user changes
+                 //&& adu.Account = vu. 
+                 // TODO: check account name changes against the VISMA user changes
 
                                         // TODO: check correct number of aliases
 
