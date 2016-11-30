@@ -347,18 +347,6 @@ module VismaEnterprise =
     let users () = WebService.users
 
 
-VismaEnterprise.WebService.createUser "90999" "NNNRRRR" "Fic" "Ticious" "NNNRRRR" "test@example.no"
-VismaEnterprise.WebService.deleteUser "21585" "NNNRRRR"
-
-
-let tUsers = VismaEnterprise.users() |> Seq.toList
-
-for u in tUsers do
-    printfn "%O" u.DisplayName
-
-
-
-
 (*** define: synch ***)
 
 module Integration = 
@@ -396,7 +384,7 @@ module Integration =
 
             let accountNameMatches =
                 query { for adu in adUsers do
-                        join vu in veUsers on (adu.Account = vu.Initials)
+                        join vu in veUsers on (adu.Account.ToUpper() = vu.Initials)
                         select (adu, vu) }
 
             let employeeIdMatches =
@@ -453,8 +441,6 @@ let testAd =
 Integration.employeeActionsVerbose testAd testVe |> Seq.toList
 Integration.employeeActions testAd testVe
 
-
-
 let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
 let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
 
@@ -479,7 +465,7 @@ let ves = query { for a in veUsers do
 
 
 Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
-Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
+Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), c.Initials, c.DisplayName) |> Seq.toList
 
 
 
