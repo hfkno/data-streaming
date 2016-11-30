@@ -255,7 +255,7 @@ let usersXml = request ""
 [<Literal>]
 let fullUser = 
     "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\
-     <user email=\"email@hfk.no\" initials=\"12345\" userId=\"1234\" usertype=\"INTERNAL\" \
+     <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" \
        xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/user-1.1.xsd\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\
        <groupMembership>\
             <group id=\"1234\"/>\
@@ -271,7 +271,7 @@ let fullUser =
 [<Literal>]
 let fullUserList = 
     "<users xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/users-1.0.xsd\">
-         <user email=\"email@hfk.no\" initials=\"12345\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
+         <user email=\"email@hfk.no\" initials=\"s12345\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
             <name displayName=\"Nice Example Name\"/>
             <groupMembership>
                 <group id=\"1114\"/>
@@ -279,14 +279,18 @@ let fullUserList =
             </groupMembership>
             <usernames username=\"NICE EXAMPLE NAME\">
                 <alias username=\"NICNAME\"/>
-                <alias username=\"12345\"/>
+                <alias username=\"s12345\"/>
             </usernames>
         </user>
          <user email=\"email@hfk.no\" initials=\"NICNAME\" userId=\"1234\" usertype=\"INTERNAL\" workPhone=\"s4712345678\" mobilePhone=\"s4712345678\">
             <name displayName=\"Nice Example Name\"/>
+            <groupMembership>
+                <group id=\"1114\"/>
+                <group id=\"1850\"/>
+            </groupMembership>
             <usernames username=\"NICE EXAMPLE NAME\">
                 <alias username=\"NICNAME\"/>
-                <alias username=\"12345\"/>
+                <alias username=\"s12345\"/>
             </usernames>
         </user>
      </users>"
@@ -304,20 +308,29 @@ let mapToUser (user: VeUsers.User) : VismaEnterprise.User =
       MobilePhone = user.MobilePhone
       Initials = user.Initials
       Type = user.Usertype
-      GroupMembership = []
+      GroupMembership = [ for g in user.GroupMemberships do yield { VismaEnterprise.Group.Id = g.Id } ]
       DisplayName = user.Name.DisplayName
       UserName = user.Usernames.Username
-      UserNames = [] }
+      UserNames = [ for a in user.Usernames.Alias do yield VismaEnterprise.Username.Alias a.Username ] }
+
+
+
+
+tUsers.Users |> Seq.map mapToUser
+
 
 for u in tUsers.Users do
     printfn "%O" u.Name.DisplayName
 
-
+let x = [ for i in 1 .. 10 do yield i ]
 
 
 let tUser = VeUser.Parse(userXml "5836")
 for n in tUser.Usernames.Alias do
     printf "%s" n.Username.Value
+
+
+//mapToUser tUser
 
 
 
