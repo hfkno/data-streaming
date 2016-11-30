@@ -30,17 +30,23 @@ Active Directory is searched using the managed API
 
 (*** hide ***)
 
+
 #r "System.DirectoryServices"
 #r "System.DirectoryServices.AccountManagement"
 #r "System.Linq"
+#r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 open System
 open System.DirectoryServices
 open System.DirectoryServices.AccountManagement
 open System.Linq
 open System.Collections.Generic
+open FSharp.Data
 
 
 
+
+
+(*** define: utility ***)
 
 let union a b = (a:IEnumerable<'a>).Union(b)
 
@@ -113,7 +119,7 @@ module ActiveDirectory =
 
 
 (*** hide ***)
-    // Search examples
+    // Active Directory Search examples
     //
     //
     //   qbeUser.GivenName <- "*"
@@ -154,8 +160,6 @@ module ActiveDirectory =
     //    for res in searcher.FindAll() do
     //        i <- i + 1
     //        printfn "%i %O" i res.Path
-
-
 
 
 
@@ -208,64 +212,76 @@ module VismaEnterprise =
 
 
 
+VismaEnterprise.users()
+
+
+
+
+
+
+
+
+
 (*** define: synch ***)
 
 module Integration = 
-
-    let areChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
-        not (adu.DisplayName = vu.DisplayName       
-             //&& adu.Account = vu. // TODO: check account name changes against the VISMA user changes
-                                    // TODO: get "workphone" and other info into the integration
-             && adu.Email = vu.Email )
-
+    
     type UpdateAction = | Ignore | Add | Update | Deactivate
 
-    let (|IsntInVismaE|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
-    let (|IsntInAd|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
-    let (|IsExpired|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
+    [<AutoOpen>]
+    module private Imp =
 
-    let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
-        match adu, vu with
-        | IsntInAd(adu), vu -> Deactivate
-        | IsExpired(adu), vu -> Deactivate
-        | adu, IsntInVismaE(vu) -> Add
-        | adu, vu as users 
-            when users |> areChanged -> Update
-        | _ -> Ignore
+        let (|IsNew|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
+        let (|IsMissing|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
+        let (|IsExpired|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
 
-    let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
+        let isChanged (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
+            not (adu.DisplayName = vu.DisplayName       
+                 //&& adu.Account = vu. // TODO: check account name changes against the VISMA user changes
+                                        // TODO: get "workphone" and other info into the integration
+                 && adu.Email = vu.Email )
 
-        let accountNameMatches =
-            query {
-                for adu in adUsers do
-                join vu in veUsers on (adu.Account = vu.Initials)
-                select (adu, vu) }
+        let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
+            match adu, vu with
+            | IsMissing(adu), vu -> Deactivate
+            | IsExpired(adu), vu -> Deactivate
+            | adu, IsNew(vu) -> Add
+            | user when user |> isChanged -> Update
+            | _ -> Ignore
 
-        let employeeIdMatches =
-            query {
-                for adu in adUsers do
-                join vu in veUsers on (adu.EmployeeId = vu.Initials)
-                select (adu, vu) }
+        let matches (adUsers:ActiveDirectory.User seq) (veUsers:VismaEnterprise.User seq) = 
 
-        let matched = accountNameMatches |> union employeeIdMatches
+            let accountNameMatches =
+                query {
+                    for adu in adUsers do
+                    join vu in veUsers on (adu.Account = vu.Initials)
+                    select (adu, vu) }
 
-        let unregisteredAdUsers =
-            query {
-                for adu in adUsers do
-                where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
-                select (adu, VismaEnterprise.User.Default) }
+            let employeeIdMatches =
+                query {
+                    for adu in adUsers do
+                    join vu in veUsers on (adu.EmployeeId = vu.Initials)
+                    select (adu, vu) }
 
-        let veUsersNotInAd =
-                query { 
-                    for vu in veUsers do
-                    where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
-                    select (ActiveDirectory.User.Default, vu) }
+            let matched = accountNameMatches |> union employeeIdMatches
 
-        matched |> union unregisteredAdUsers |> union veUsersNotInAd
+            let unregisteredAdUsers =
+                query {
+                    for adu in adUsers do
+                    where (not <| (matched.Any(fun (ad, vu) -> ad.EmployeeId = adu.EmployeeId)))
+                    select (adu, VismaEnterprise.User.Default) }
+
+            let veUsersNotInAd =
+                    query { 
+                        for vu in veUsers do
+                        where (not <| adUsers.Any(fun adu -> adu.Email = vu.Email))
+                        select (ActiveDirectory.User.Default, vu) }
+
+            matched |> union unregisteredAdUsers |> union veUsersNotInAd
 
 
-    let matchActions (users : (ActiveDirectory.User * VismaEnterprise.User) seq) =
-        seq { for u in users do yield (u |> action, u) }
+        let matchActions (users : (ActiveDirectory.User * VismaEnterprise.User) seq) =
+            seq { for u in users do yield (u |> action, u) }
 
     /// Returns all employee actions after comparing the provided sets of users
     let allEmployeeActions ad ve = matches ad ve |> matchActions
