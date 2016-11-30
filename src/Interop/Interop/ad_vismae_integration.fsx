@@ -444,7 +444,7 @@ Integration.employeeActions testAd testVe
 let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
 let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
 
-adUsers |> List.length
+adUsers  |> Seq.toList |> List.length
 veUsers |> List.length
 
 let aus = query { for a in adUsers do
