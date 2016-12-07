@@ -44,13 +44,22 @@ open System.Collections.Generic
 open FSharp.Data
 open FSharp.Data.HttpRequestHeaders
 
+// TODO: run through the UserNames usage in the update routine and the change comparison routine - ensure that everybody has their employee ID and their user name as an alias, if not then add!
+
+// TODO: dry run solution on a limited selection of users and ensure we're kosher
+
+// TODO: prep for full run (tomorrow)
+
+
+
+// TODO: Find out from VISMA if there is a way to update the display name... It seems not.  Currently disabled in the "Update" functionality
+
+// TODO: Setup a time report of hours used on the integration
+
 // TODO: create internal documentation in CMDB with the details
 
 // TODO: create a credentials solution... Passwords should not be stored in project files...
 
-// TODO: Find ouut from VISMA if there is a way to update the display name... It seems not.  Currently disabled in the "Update" functionality
-
-// TODO: run through the UserNames usage in the update routine and the change comparison routine - ensure that everybody has their employee ID and their user name as an alias, if not then add!
 
 
 (*** define: utility ***)
