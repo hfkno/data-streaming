@@ -49,10 +49,6 @@ open FSharp.Data.HttpRequestHeaders
 
 // TODO: run through the UserNames usage in the update routine and the change comparison routine - ensure that everybody has their employee ID and their user name as an alias, if not then add!
 
-// TODO: update AD name changes against the VISMA user changes
-
-// TODO: get mobile phone info into the integration (go into the user object properties)
-
 // TODO: dry run solution on a limited selection of users and ensure we're kosher
 
 // TODO: prep for full run (tomorrow)
@@ -69,13 +65,13 @@ open FSharp.Data.HttpRequestHeaders
 
 // TODO: document where we are "loading" data and where we are "writing" data in the documentation (ie `toUser` in this file)
 
-// TODO: Figure out what happens if a user changes their name, do they get a new domain username?
 
 
 
 (*** define: utility ***)
 
 let union a b = (a:IEnumerable<'a>).Union(b)
+let isEmpty s = String.IsNullOrWhiteSpace(s)
 
 
 (*** define: ad-operations ***)
@@ -91,6 +87,7 @@ module ActiveDirectory =
         Email : string
         IsActive : bool
         WorkPhone : string
+        MobilePhone : string
         FirstName : string
         LastName : string
         Other : string }
@@ -102,6 +99,7 @@ module ActiveDirectory =
             Email = "unknown@example.com"
             IsActive = false
             WorkPhone = ""
+            MobilePhone = ""
             FirstName = "Unknown"
             LastName = "User"
             Other = "" }
@@ -110,20 +108,34 @@ module ActiveDirectory =
     let private isActive (user : UserPrincipal)  = 
         not <| (user.AccountExpirationDate.HasValue && user.AccountExpirationDate.Value < DateTime.Now)
 
+    let toDirectoryEntry (user : UserPrincipal) = user.GetUnderlyingObject() :?> DirectoryEntry
+    let getDirectoryProperty prop (directoryEntry : DirectoryEntry) = 
+        let p = directoryEntry.Properties.[prop]
+        match p.Value with
+        | v when v |> isNull -> ""
+        | _ -> p.Value.ToString()
+    let getProp prop = toDirectoryEntry >> getDirectoryProperty prop
+
+    let private printProperties (user : UserPrincipal) = 
+        let de = user.GetUnderlyingObject() :?> DirectoryEntry
+        for name in de.Properties.PropertyNames do
+            let pname = name :?> string
+            printfn "[%s]: %s" pname (de.Properties.[pname].Value.ToString())
+
     /// EmployeeIds are stored as the carLicense property with a birthdate suffixed
     let private employeeId (user: UserPrincipal) =
         try
-            let de = user.GetUnderlyingObject() :?> DirectoryEntry
-            let licenseProp = de.Properties.["carLicense"]
-            if licenseProp.Value |> isNull then
-                User.Default.EmployeeId
-            else
-                let license = licenseProp.Value.ToString()
+            let license = user |> getProp "carLicense"
+            match license with
+            | v when v |> isEmpty -> User.Default.EmployeeId
+            | license ->
                 let birthDateLength = 6
                 license.Substring(0, license.Length - birthDateLength)
         with
         | _ -> 
             failwith (sprintf "Error reading employeeId for user '%s' (%s)" user.DisplayName user.SamAccountName)
+
+    let private mobilePhone user = user |> getProp "mobile"
 
     /// Yields domain users that match the provided pattern
     let private findUsersMatching (pattern) =
@@ -142,6 +154,7 @@ module ActiveDirectory =
                         Account = user.SamAccountName
                         IsActive = user |> isActive
                         WorkPhone = user.VoiceTelephoneNumber
+                        MobilePhone = user |> mobilePhone
                         FirstName = user.GivenName
                         LastName = user.Surname
                         Other = "" } }
@@ -162,8 +175,8 @@ module ActiveDirectory =
 module VismaEnterpriseAnticorruption = 
 
     type ActiveDirectory.User with
-        member x.Initials = x.Account.ToUpper()
-        member x.NecessaryAliases() = [ x.Initials; x.EmployeeId ]
+        member x.FormattedAccount = x.Account.ToUpper()
+        member x.NecessaryAliases() = [ x.FormattedAccount; x.EmployeeId ]
         member x.UserName = (sprintf "%s %s" x.FirstName x.LastName).ToUpper()
 
 
@@ -211,7 +224,7 @@ module VismaEnterprise =
         member x.HasAllAliasesFor (user: ActiveDirectory.User) =
             user.NecessaryAliases() |> List.forall x.HasAlias
 
-    module WebService =
+    module UserService =
         
         [<AutoOpen>]
         module Endpoint =
@@ -352,7 +365,7 @@ module VismaEnterprise =
         /// Deletes the users alias, OR sets the user passive if the alias is the same as the users initials 
         let deactivateUser userId initialsOrAlias = deleteUser userId initialsOrAlias
 
-    let users () = WebService.users
+    let users () = UserService.users
 
 
 (*** define: synch ***)
@@ -373,9 +386,10 @@ module Integration =
         let needsUpdating (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
             not (adu.DisplayName = vu.DisplayName 
                  && adu.WorkPhone = vu.WorkPhone
-                 && vu.HasAllAliasesFor(adu)
+                 && adu.MobilePhone = vu.MobilePhone
                  && adu.EmployeeId = vu.Initials
-                 && adu.Email = vu.Email )
+                 && adu.Email = vu.Email
+                 && vu.HasAllAliasesFor(adu) )
 
         let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
             match adu, vu with
@@ -389,7 +403,7 @@ module Integration =
 
             let accountNameMatches =
                 query { for adu in adUsers do
-                        join vu in veUsers on (adu.Initials = vu.Initials)
+                        join vu in veUsers on (adu.FormattedAccount = vu.Initials)
                         select (adu, vu) }
 
             let employeeIdMatches =
@@ -406,7 +420,7 @@ module Integration =
 
             let veUsersNotInAd =
                     query { for vu in veUsers do
-                            where (not <| adUsers.Any(fun adu -> adu.EmployeeId = vu.Initials || adu.Initials = vu.Initials))
+                            where (not <| adUsers.Any(fun adu -> adu.EmployeeId = vu.Initials || adu.FormattedAccount = vu.Initials))
                             select (ActiveDirectory.User.Default, vu) }
 
             matched |> union unregisteredAdUsers |> union veUsersNotInAd
@@ -432,18 +446,18 @@ module Integration =
         let handler ((action, (au, vu)) : UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) = 
             match action with
             | Ignore -> ()
-            | Add -> VismaEnterprise.WebService.createUser au.EmployeeId au.Initials au.FirstName au.LastName au.Initials au.Email |> ignore
+            | Add -> VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.FormattedAccount au.Email |> ignore
             | Update -> 
-                if au.Email <> vu.Email         then VismaEnterprise.WebService.setEmail vu.VismaId au.Email |> ignore
-                if au.WorkPhone <> vu.WorkPhone then VismaEnterprise.WebService.setWorkPhone vu.VismaId au.WorkPhone |> ignore
+                if au.Email <> vu.Email         then VismaEnterprise.UserService.setEmail vu.VismaId au.Email |> ignore
+                if au.WorkPhone <> vu.WorkPhone then VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone |> ignore
+                if au.MobilePhone <> vu.MobilePhone then VismaEnterprise.UserService.setMobile vu.VismaId au.MobilePhone |> ignore
                 //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
                 //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
                 if not <| vu.HasAllAliasesFor(au) then
                     for alias in au.NecessaryAliases() do
-                        VismaEnterprise.WebService.addAlias vu.VismaId alias
-
-                // TODO: update username if required
-            | Deactivate -> VismaEnterprise.WebService.deactivateUser vu.VismaId vu.Initials |> ignore
+                        if not <| vu.HasAlias(alias) then
+                            VismaEnterprise.UserService.addAlias vu.VismaId alias
+            | Deactivate -> VismaEnterprise.UserService.deactivateUser vu.VismaId vu.Initials |> ignore
 
         actions |> Seq.map handler
 
@@ -477,7 +491,7 @@ let rawr = 123
 
 
 #time
-let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Aar")) |> Seq.toList
+let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Aar") || u.DisplayName.StartsWith("Anne")) |> Seq.toList
 let adlist = adUsers  |> Seq.toList
 #time
 adlist |> List.length
