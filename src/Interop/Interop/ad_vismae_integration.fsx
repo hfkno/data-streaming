@@ -72,7 +72,7 @@ open FSharp.Data.HttpRequestHeaders
 
 let union a b = (a:IEnumerable<'a>).Union(b)
 let isEmpty s = String.IsNullOrWhiteSpace(s)
-
+let safeString s = match s |> isNull with | true -> "" | _ -> s
 
 (*** define: ad-operations ***)
 
@@ -89,8 +89,7 @@ module ActiveDirectory =
         WorkPhone : string
         MobilePhone : string
         FirstName : string
-        LastName : string
-        Other : string }
+        LastName : string }
     with 
         static member Default = 
           { EmployeeId = "-1"
@@ -101,26 +100,27 @@ module ActiveDirectory =
             WorkPhone = ""
             MobilePhone = ""
             FirstName = "Unknown"
-            LastName = "User"
-            Other = "" }
-
-    /// Determines if a user account is active or not at the current moment
-    let private isActive (user : UserPrincipal)  = 
-        not <| (user.AccountExpirationDate.HasValue && user.AccountExpirationDate.Value < DateTime.Now)
-
-    let toDirectoryEntry (user : UserPrincipal) = user.GetUnderlyingObject() :?> DirectoryEntry
-    let getDirectoryProperty prop (directoryEntry : DirectoryEntry) = 
-        let p = directoryEntry.Properties.[prop]
-        match p.Value with
-        | v when v |> isNull -> ""
-        | _ -> p.Value.ToString()
-    let getProp prop = toDirectoryEntry >> getDirectoryProperty prop
+            LastName = "User" }
 
     let private printProperties (user : UserPrincipal) = 
         let de = user.GetUnderlyingObject() :?> DirectoryEntry
         for name in de.Properties.PropertyNames do
             let pname = name :?> string
             printfn "[%s]: %s" pname (de.Properties.[pname].Value.ToString())
+
+    let toDirectoryEntry (user : UserPrincipal) = user.GetUnderlyingObject() :?> DirectoryEntry
+
+    let getDirectoryProperty prop (directoryEntry : DirectoryEntry) = 
+        let p = directoryEntry.Properties.[prop]
+        match p.Value with
+        | v when v |> isNull -> ""
+        | _ -> p.Value.ToString()
+
+    let getProp prop = toDirectoryEntry >> getDirectoryProperty prop
+
+    /// Determines if a user account is active or not at the current moment
+    let private isActive (user : UserPrincipal)  = 
+        not <| (user.AccountExpirationDate.HasValue && user.AccountExpirationDate.Value < DateTime.Now)
 
     /// EmployeeIds are stored as the carLicense property with a birthdate suffixed
     let private employeeId (user: UserPrincipal) =
@@ -149,15 +149,14 @@ module ActiveDirectory =
                 let user = (principal :?> UserPrincipal)
 
                 yield { EmployeeId = user |> employeeId
-                        DisplayName = user.DisplayName
-                        Email = user.EmailAddress
+                        DisplayName = user.DisplayName |> safeString
+                        Email = user.EmailAddress |> safeString
                         Account = user.SamAccountName
                         IsActive = user |> isActive
-                        WorkPhone = user.VoiceTelephoneNumber
+                        WorkPhone = user.VoiceTelephoneNumber |> safeString
                         MobilePhone = user |> mobilePhone
-                        FirstName = user.GivenName
-                        LastName = user.Surname
-                        Other = "" } }
+                        FirstName = user.GivenName |> safeString
+                        LastName = user.Surname |> safeString } }
 
     /// Yields all users - quite slow on occasion...
     ///     Performance info:
@@ -440,26 +439,25 @@ module Integration =
         employeeActionsVerbose ad ve 
         |> Seq.filter (fun (a, t) -> a <> Ignore)
 
-        
-    let processEmployeeActions (actions : (UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) seq) =
 
-        let handler ((action, (au, vu)) : UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) = 
-            match action with
-            | Ignore -> ()
-            | Add -> VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.FormattedAccount au.Email |> ignore
-            | Update -> 
-                if au.Email <> vu.Email         then VismaEnterprise.UserService.setEmail vu.VismaId au.Email |> ignore
-                if au.WorkPhone <> vu.WorkPhone then VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone |> ignore
-                if au.MobilePhone <> vu.MobilePhone then VismaEnterprise.UserService.setMobile vu.VismaId au.MobilePhone |> ignore
-                //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
-                //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
-                if not <| vu.HasAllAliasesFor(au) then
-                    for alias in au.NecessaryAliases() do
-                        if not <| vu.HasAlias(alias) then
-                            VismaEnterprise.UserService.addAlias vu.VismaId alias
-            | Deactivate -> VismaEnterprise.UserService.deactivateUser vu.VismaId vu.Initials |> ignore
+    let processEmployeeAction ((action, (au, vu)) : UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) = 
+        printfn "Processing %O command for %s" action au.DisplayName
+        match action with
+        | Ignore -> ()
+        | Add -> VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.FormattedAccount au.Email |> ignore
+        | Update -> 
+            if au.Email <> vu.Email             then VismaEnterprise.UserService.setEmail vu.VismaId au.Email |> ignore
+            if au.WorkPhone <> vu.WorkPhone     then VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone |> ignore
+            if au.MobilePhone <> vu.MobilePhone then VismaEnterprise.UserService.setMobile vu.VismaId au.MobilePhone |> ignore
+            //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
+            //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
+            if not <| vu.HasAllAliasesFor(au) then
+                for alias in au.NecessaryAliases() do
+                    if not <| vu.HasAlias(alias) then
+                        VismaEnterprise.UserService.addAlias vu.VismaId alias
+        | Deactivate -> VismaEnterprise.UserService.deactivateUser vu.VismaId vu.Initials |> ignore
 
-        actions |> Seq.map handler
+    let processEmployeeActions actions = actions |> Seq.map processEmployeeAction
 
 
 
@@ -491,13 +489,13 @@ let rawr = 123
 
 
 #time
-let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Aar") || u.DisplayName.StartsWith("Anne")) |> Seq.toList
+let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ag")) |> Seq.toList
 let adlist = adUsers  |> Seq.toList
 #time
 adlist |> List.length
 
 #time
-let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Aar")) |> Seq.toList
+let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ag")) |> Seq.toList
 veUsers |> List.length
 #time
 
@@ -537,6 +535,9 @@ query { for adu in aus do
 
 
 let updateActions = Integration.employeeActions adUsers veUsers |> Seq.toList
+
+Integration.processEmployeeActions updateActions //|> ignore
+
 
 let a, (a1, a2) = updateActions |> List.head
 
