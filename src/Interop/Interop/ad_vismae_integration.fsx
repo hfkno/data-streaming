@@ -47,13 +47,11 @@ open System.Collections.Generic
 open FSharp.Data
 open FSharp.Data.HttpRequestHeaders
 
-// TODO: run through the UserNames usage in the update routine and the change comparison routine - ensure that everybody has their employee ID and their user name as an alias, if not then add!
+// TODO: run through the UserNames usage in the update routine and the change comparison routine - ensure that everybody has their employee ID and their user name as an alias, if not then add!  <++ DOUBLE CHECK
 
-// TODO: prep for full run (tomorrow)
+// TODO: prep for full run >> checkout the error and complete this
 
 
-
-// TODO: Find out from VISMA if there is a way to update the display name... It seems not.  Currently disabled in the "Update" functionality.  "DisplayName" as well as "UserName" are inaccesible
 
 // TODO: Setup a time report of hours used on the integration
 
@@ -361,7 +359,9 @@ module VismaEnterprise =
 
         /// Deletes the users alias, OR sets the user passive if the alias is the same as the users initials 
         let deleteUser userId initialsOrAlias =
-            simpleRequest "DELETE" (sprintf "%i/username/%s" userId initialsOrAlias)
+            safeAction
+                (fun () -> simpleRequest "DELETE" (sprintf "%i/username/%s" userId initialsOrAlias))
+                (sprintf "Could not delete user '%s'" initialsOrAlias)
 
         /// Deletes the users alias, OR sets the user passive if the alias is the same as the users initials 
         let deactivateUser userId initialsOrAlias = deleteUser userId initialsOrAlias
@@ -382,9 +382,11 @@ module Integration =
     module Actions =
 
         let (|IsUnregistered|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
+        let (|IsMissingInitials|_|) (vu:VismaEnterprise.User) = if not <| exists vu.Initials then Some adu else None
         let (|IsMissing|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
         let (|IsInactive|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
-        let (|IsMissingEmail|_|) (adu:ActiveDirectory.User) = if String.IsNullOrWhiteSpace(adu.Email) then Some adu else None
+        let (|IsMissingEmail|_|) (adu:ActiveDirectory.User) = if not <| exists adu.Email then Some adu else None
+        
 
         let needsUpdating (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
             not (adu.DisplayName = vu.DisplayName 
@@ -400,6 +402,7 @@ module Integration =
             | IsInactive(adu), vu -> Deactivate
             | IsMissingEmail(adu), vu -> Ignore
             | adu, IsUnregistered(vu) -> Add
+            | adu, IsMissingInitials(vu) -> Ignore
             | user when user |> needsUpdating -> Update
             | _ -> Ignore
 
@@ -533,13 +536,11 @@ query { for adu in aus do
 
 
 #time
-let badinitials = ["TELLER"; "SKYSS"]
-let updateActions = Integration.employeeActions adUsers veUsers |> Seq.where (fun (a, (b, c)) -> not <| badinitials.Contains(c.Initials)) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
+let badinitials = ["TELLER"; "SKYSS"; "OPUS"]
+let updateActions = Integration.employeeActions adUsers veUsers |> Seq.where (fun (a, (b, c)) -> (not <| badinitials.Contains(c.Initials)) && exists c.Initials) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
 #time
 
 
-for (a, (b,c)) in updateActions do
-    printfn "%A" a
 
 let mutable i = 0
 for action in updateActions do
@@ -550,7 +551,7 @@ for action in updateActions do
 
 
 
-let updateTest = Integration.employeeActions adUsers veUsers |> Seq.skip 49 |> Seq.head
+let updateTest = Integration.employeeActions adUsers veUsers |> Seq.skip 82 |> Seq.head
 Integration.processEmployeeAction updateTest
 
 
