@@ -49,8 +49,6 @@ open FSharp.Data.HttpRequestHeaders
 
 // TODO: run through the UserNames usage in the update routine and the change comparison routine - ensure that everybody has their employee ID and their user name as an alias, if not then add!
 
-// TODO: dry run solution on a limited selection of users and ensure we're kosher
-
 // TODO: prep for full run (tomorrow)
 
 
@@ -496,10 +494,10 @@ let rawr = 123
 
 
 #time
-let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
+let adUsers = ActiveDirectory.users() |> Seq.toList //|> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
 #time
 #time
-let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
+let veUsers = VismaEnterprise.users() |> Seq.toList // |> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
 #time
 veUsers |> List.length
 adUsers |> List.length
@@ -534,41 +532,26 @@ query { for adu in aus do
 
 
 
-let updateTest = Integration.employeeActions adUsers veUsers |> Seq.skip 8 |> Seq.head
-Integration.processEmployeeAction updateTest
+#time
+let badinitials = ["TELLER"; "SKYSS"]
+let updateActions = Integration.employeeActions adUsers veUsers |> Seq.where (fun (a, (b, c)) -> not <| badinitials.Contains(c.Initials)) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
+#time
 
 
+for (a, (b,c)) in updateActions do
+    printfn "%A" a
 
-let updateActions = Integration.employeeActions adUsers veUsers |> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
-
+let mutable i = 0
 for action in updateActions do
+    i <- i + 1
+    printfn "Action %i" i
     Integration.processEmployeeAction action
 
 
-Integration.processEmployeeActions updateActions //|> ignore
 
 
-let a, (a1, a2) = updateActions |> List.head
-
-let needsUpdating (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
-    not (adu.DisplayName = vu.DisplayName 
-            && adu.WorkPhone = vu.WorkPhone
-            && vu.HasAllAliasesFor(adu)
-            && adu.EmployeeId = vu.Initials
-            && adu.Email = vu.Email )
-
-needsUpdating (a1,a2)
-a1.DisplayName
-a2.DisplayName
-a1.WorkPhone    // my workphone is coming up null... should check for null and that it is being read correctly...
-a2.WorkPhone
-a2.HasAllAliasesFor(a1)
-a1.EmployeeId
-a2.Initials
-a1.Email
-a2.Email
-
-Integration.Actions.needsUpdating (a1, a2)
+let updateTest = Integration.employeeActions adUsers veUsers |> Seq.skip 49 |> Seq.head
+Integration.processEmployeeAction updateTest
 
 
 
