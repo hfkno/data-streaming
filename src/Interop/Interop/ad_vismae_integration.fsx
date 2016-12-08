@@ -72,6 +72,7 @@ open FSharp.Data.HttpRequestHeaders
 
 let union a b = (a:IEnumerable<'a>).Union(b)
 let isEmpty s = String.IsNullOrWhiteSpace(s)
+let exists s = not <| String.IsNullOrEmpty(s)
 let safeString s = match s |> isNull with | true -> "" | _ -> s
 
 (*** define: ad-operations ***)
@@ -322,7 +323,7 @@ module VismaEnterprise =
                 action ()
             with
             // The webservice returns "bad request" (code 400) to indicate an internal server error
-            | :? WebException as webEx -> failwith errorMessage
+            | :? WebException as webEx -> failwith (webEx.Response.ResponseUri.ToString() + " ") + errorMessage
 
         let putContent action message = safeAction (fun () -> action |> put) message
 
@@ -334,7 +335,10 @@ module VismaEnterprise =
         let setEmail userId email = setEmailType "WORK" userId email
             
         let setPhone phoneType userId number = 
-            sprintf "%i/phone/%s/%s" userId phoneType number |> put
+            let safeNumber = if number |> exists then number else "%20"
+            putContent
+                (sprintf "%i/phone/%s/%s" userId phoneType safeNumber)
+                (sprintf "Could not update user %i %s='%s'" userId phoneType number)
         let setMobile = setPhone "MOBILE"
         let setWorkPhone = setPhone "WORK"
 
@@ -382,6 +386,7 @@ module Integration =
         let (|IsUnregistered|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
         let (|IsMissing|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
         let (|IsInactive|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
+        let (|IsMissingEmail|_|) (adu:ActiveDirectory.User) = if String.IsNullOrWhiteSpace(adu.Email) then Some adu else None
 
         let needsUpdating (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
             not (adu.DisplayName = vu.DisplayName 
@@ -395,6 +400,7 @@ module Integration =
             match adu, vu with
             | IsMissing (adu), vu -> Deactivate
             | IsInactive(adu), vu -> Deactivate
+            | IsMissingEmail(adu), vu -> Ignore
             | adu, IsUnregistered(vu) -> Add
             | user when user |> needsUpdating -> Update
             | _ -> Ignore
@@ -445,7 +451,7 @@ module Integration =
         printfn "Processing %A command for %s (%s::%s)" action au.DisplayName vu.DisplayName vu.Initials
         match action with
         | Ignore -> ()
-        | Add -> VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.FormattedAccount au.Email |> ignore
+        | Add -> VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.EmployeeId au.Email |> ignore
         | Update -> 
             if au.Email <> vu.Email             then VismaEnterprise.UserService.setEmail vu.VismaId au.Email |> ignore
             if au.WorkPhone <> vu.WorkPhone     then VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone |> ignore
@@ -490,10 +496,10 @@ let rawr = 123
 
 
 #time
-let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ag")) |> Seq.toList
+let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
 #time
 #time
-let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ag")) |> Seq.toList
+let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
 #time
 veUsers |> List.length
 adUsers |> List.length
@@ -517,7 +523,7 @@ let ves = query { for a in veUsers do
 
 
 Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
-Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), c.Initials, c.DisplayName) |> Seq.toList 
+Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), b.Email, b.EmployeeId, c.Initials, c.DisplayName) |> Seq.toList 
 let arne = Integration.employeeActions aus ves |> Seq.filter (fun (a, (b,c)) -> c.Initials = "ARNNESS") |> Seq.toList |> Seq.head |> snd
 query { for adu in aus do
         join vu in ves on (adu.Account.ToUpper() = vu.Initials)
@@ -528,12 +534,16 @@ query { for adu in aus do
 
 
 
-let updateTest = Integration.employeeActions adUsers veUsers |> Seq.skip 0 |> Seq.head
+let updateTest = Integration.employeeActions adUsers veUsers |> Seq.skip 8 |> Seq.head
 Integration.processEmployeeAction updateTest
 
 
 
-let updateActions = Integration.employeeActions adUsers veUsers |> Seq.toList
+let updateActions = Integration.employeeActions adUsers veUsers |> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
+
+for action in updateActions do
+    Integration.processEmployeeAction action
+
 
 Integration.processEmployeeActions updateActions //|> ignore
 
