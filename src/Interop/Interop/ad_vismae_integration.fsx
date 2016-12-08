@@ -14,6 +14,9 @@ Integration overview
 
 Integration details
 -------------------
+
+Visma Enterprise is located as "http://hfk-app01:8080/enterprise/enterprise?0"
+
 Initial connection to LDAP for user retrieval
 *)
 (*** include: list-users ***)
@@ -56,7 +59,7 @@ open FSharp.Data.HttpRequestHeaders
 
 
 
-// TODO: Find out from VISMA if there is a way to update the display name... It seems not.  Currently disabled in the "Update" functionality
+// TODO: Find out from VISMA if there is a way to update the display name... It seems not.  Currently disabled in the "Update" functionality.  "DisplayName" as well as "UserName" are inaccesible
 
 // TODO: Setup a time report of hours used on the integration
 
@@ -65,6 +68,8 @@ open FSharp.Data.HttpRequestHeaders
 // TODO: create a credentials solution... Passwords should not be stored in project files...
 
 // TODO: document where we are "loading" data and where we are "writing" data in the documentation (ie `toUser` in this file)
+
+// TODO: Figure out what happens if a user changes their name, do they get a new domain username?
 
 
 
@@ -159,6 +164,7 @@ module VismaEnterpriseAnticorruption =
     type ActiveDirectory.User with
         member x.Initials = x.Account.ToUpper()
         member x.NecessaryAliases() = [ x.Initials; x.EmployeeId ]
+        member x.UserName = (sprintf "%s %s" x.FirstName x.LastName).ToUpper()
 
 
 (*** define: webservice ***)
@@ -430,9 +436,12 @@ module Integration =
             | Update -> 
                 if au.Email <> vu.Email         then VismaEnterprise.WebService.setEmail vu.VismaId au.Email |> ignore
                 if au.WorkPhone <> vu.WorkPhone then VismaEnterprise.WebService.setWorkPhone vu.VismaId au.WorkPhone |> ignore
-                //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no name editing support
-                // TODO: update initials if required
-                // [user.Account.ToUpper(); user.EmployeeId] |> List.forall(fun alias ->  if not (hasAlias) x.UserNames.Any(fun uname -> Username.name uname = alias))
+                //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
+                //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
+                if not <| vu.HasAllAliasesFor(au) then
+                    for alias in au.NecessaryAliases() do
+                        VismaEnterprise.WebService.addAlias vu.VismaId alias
+
                 // TODO: update username if required
             | Deactivate -> VismaEnterprise.WebService.deactivateUser vu.VismaId vu.Initials |> ignore
 
@@ -468,14 +477,16 @@ let rawr = 123
 
 
 #time
-let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
+let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Aar")) |> Seq.toList
 let adlist = adUsers  |> Seq.toList
 #time
 adlist |> List.length
 
-
-let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ar")) |> Seq.toList
+#time
+let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Aar")) |> Seq.toList
 veUsers |> List.length
+#time
+
 
 let aus = query { for a in adUsers do
                   //where (a.DisplayName.Contains("Andre"))
@@ -511,7 +522,32 @@ query { for adu in aus do
 
 
 
-Integration.employeeActions adUsers veUsers
+let updateActions = Integration.employeeActions adUsers veUsers |> Seq.toList
+
+let a, (a1, a2) = updateActions |> List.head
+
+let needsUpdating (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
+    not (adu.DisplayName = vu.DisplayName 
+            && adu.WorkPhone = vu.WorkPhone
+            && vu.HasAllAliasesFor(adu)
+            && adu.EmployeeId = vu.Initials
+            && adu.Email = vu.Email )
+
+needsUpdating (a1,a2)
+a1.DisplayName
+a2.DisplayName
+a1.WorkPhone    // my workphone is coming up null... should check for null and that it is being read correctly...
+a2.WorkPhone
+a2.HasAllAliasesFor(a1)
+a1.EmployeeId
+a2.Initials
+a1.Email
+a2.Email
+
+Integration.Actions.needsUpdating (a1, a2)
+
+
+
 let ff = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList
 
 
