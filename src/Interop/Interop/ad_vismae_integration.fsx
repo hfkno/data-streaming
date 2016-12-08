@@ -312,7 +312,7 @@ module VismaEnterprise =
 
         let userXml vismaId = request vismaId
         let usersXml = request ""
-        let users = 
+        let users () = 
             (usersXml |> VeServiceUsers.Parse)
                 .Users 
                 |> Seq.map toUser
@@ -364,7 +364,8 @@ module VismaEnterprise =
         /// Deletes the users alias, OR sets the user passive if the alias is the same as the users initials 
         let deactivateUser userId initialsOrAlias = deleteUser userId initialsOrAlias
 
-    let users () = UserService.users
+    let users () = UserService.users ()
+
 
 
 (*** define: synch ***)
@@ -441,7 +442,7 @@ module Integration =
 
 
     let processEmployeeAction ((action, (au, vu)) : UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) = 
-        printfn "Processing %O command for %s" action au.DisplayName
+        printfn "Processing %A command for %s (%s::%s)" action au.DisplayName vu.DisplayName vu.Initials
         match action with
         | Ignore -> ()
         | Add -> VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.FormattedAccount au.Email |> ignore
@@ -490,14 +491,12 @@ let rawr = 123
 
 #time
 let adUsers = ActiveDirectory.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ag")) |> Seq.toList
-let adlist = adUsers  |> Seq.toList
 #time
-adlist |> List.length
-
 #time
 let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Ag")) |> Seq.toList
-veUsers |> List.length
 #time
+veUsers |> List.length
+adUsers |> List.length
 
 
 let aus = query { for a in adUsers do
@@ -520,7 +519,6 @@ let ves = query { for a in veUsers do
 Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
 Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), c.Initials, c.DisplayName) |> Seq.toList 
 let arne = Integration.employeeActions aus ves |> Seq.filter (fun (a, (b,c)) -> c.Initials = "ARNNESS") |> Seq.toList |> Seq.head |> snd
-
 query { for adu in aus do
         join vu in ves on (adu.Account.ToUpper() = vu.Initials)
         select (adu, vu) } 
@@ -530,7 +528,8 @@ query { for adu in aus do
 
 
 
-
+let updateTest = Integration.employeeActions adUsers veUsers |> Seq.skip 0 |> Seq.head
+Integration.processEmployeeAction updateTest
 
 
 
