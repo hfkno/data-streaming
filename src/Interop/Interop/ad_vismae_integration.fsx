@@ -74,6 +74,22 @@ let union a b = (a:IEnumerable<'a>).Union(b)
 let isEmpty s = String.IsNullOrWhiteSpace(s)
 let exists s = not <| String.IsNullOrEmpty(s)
 let safeString s = match s |> isNull with | true -> "" | _ -> s
+let inline (++) (lres : Result<string,string> list) (rres : Result<string, string>) = lres @ [ rres ]
+let rawr (lres : byref<Result<string,string> list>) (rres : Result<string, string>) = lres <- lres @ [ rres ]
+
+
+let y : Result<string,string> = Error "yo"
+let zzz = Error "ooo"
+let mutable foo = [zzz]
+rawr foo zzz
+
+
+foo <- (foo ++ y)
+foo ++ y
+foo
+let x = [Success "hey"] ++ y  // ++ [ (Error "Whaaaa") ]
+
+
 
 (*** define: ad-operations ***)
 
@@ -348,10 +364,12 @@ module VismaEnterprise =
         let setInitials userId initials =
             putContent
                 (sprintf "%i/initials/%s" userId initials)
-                (sprintf "Initials cannot be changed, could not update user to initials '%s'" initials)
+                (sprintf "Initials cannot be changed, could not update user %i to initials '%s'" userId initials)
 
         let addAlias userId alias =
-            fullRequest "POST" (sprintf "%i/username" userId) (Some [ "user", alias ]) |> ignore
+            safeAction 
+                (fun () -> fullRequest "POST" (sprintf "%i/username" userId) (Some [ "user", alias ])) 
+                (sprintf "Could not set user %i alias '%s'" userId alias)
 
 //        // Did not delete aliases as expected... :
 //        let deleteAlias userId alias =
@@ -388,6 +406,7 @@ module Integration =
     [<AutoOpen>]
     module Actions =
 
+        let success = Success ""
         let (|IsUnregistered|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
         let (|IsMissingInitials|_|) (vu:VismaEnterprise.User) = if not <| exists vu.Initials then Some vu else None
         let (|IsMissing|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
@@ -455,26 +474,60 @@ module Integration =
         |> Seq.filter (fun (a, t) -> a <> Ignore)
 
 
-    let processEmployeeAction ((action, (au, vu)) : UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) = 
+    let processEmployeeAction ((action, (au, vu)) : UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) : Result<string,string> list = 
         printfn "Processing %A command for %s (%s::%s)" action au.DisplayName vu.DisplayName vu.Initials
         match action with
-        | Ignore -> ()
-        | Add -> VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.EmployeeId au.Email |> ignore
+        | Ignore -> [ success ]
+        | Add -> [ VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.EmployeeId au.Email ]
         | Update -> 
-            if au.Email <> vu.Email             then VismaEnterprise.UserService.setEmail vu.VismaId au.Email |> ignore
-            if au.WorkPhone <> vu.WorkPhone     then VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone |> ignore
-            if au.MobilePhone <> vu.MobilePhone then VismaEnterprise.UserService.setMobile vu.VismaId au.MobilePhone |> ignore
+            let email     = au.Email <> vu.Email, fun () -> [ VismaEnterprise.UserService.setEmail vu.VismaId au.Email ]
+            let workphone = au.WorkPhone <> vu.WorkPhone, fun () -> [ VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone ]
+            let mobile    = au.MobilePhone <> vu.MobilePhone, fun () -> [ VismaEnterprise.UserService.setMobile vu.VismaId au.MobilePhone ]
+            let aliases   = 
+                not <| vu.HasAllAliasesFor(au),  
+                fun () ->  seq { for alias in au.NecessaryAliases() do
+                                    if not <| vu.HasAlias(alias) then
+                                        yield VismaEnterprise.UserService.addAlias vu.VismaId alias 
+                                } |> Seq.toList
+
+            let validations = [ email; workphone; mobile; aliases ]
+
+            seq { for (validation, action) in validations do
+                    if validation then yield! action () } |> Seq.toList
+
             //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
             //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
-            if not <| vu.HasAllAliasesFor(au) then
-                for alias in au.NecessaryAliases() do
-                    if not <| vu.HasAlias(alias) then
-                        VismaEnterprise.UserService.addAlias vu.VismaId alias
-        | Deactivate -> VismaEnterprise.UserService.deactivateUser vu.VismaId vu.Initials |> ignore
+
+//            if au.Email <> vu.Email then VismaEnterprise.UserService.setEmail vu.VismaId au.Email 
+//            if au.WorkPhone <> vu.WorkPhone then VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone 
+//            if au.MobilePhone <> vu.MobilePhone then VismaEnterprise.UserService.setMobile vu.VismaId au.MobilePhone 
+//            //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
+//            //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
+//            if not <| vu.HasAllAliasesFor(au) then
+//                for alias in au.NecessaryAliases() do
+//                    if not <| vu.HasAlias(alias) then
+//                        VismaEnterprise.UserService.addAlias vu.VismaId alias 
+        | Deactivate -> [ VismaEnterprise.UserService.deactivateUser vu.VismaId vu.Initials ]
 
     let processEmployeeActions actions = actions |> Seq.map processEmployeeAction
 
 
+
+
+let test =
+    let a, b, c, d, e, f, g = 0, 2, 0, 3, 0, 0, 0
+    let check = a <> b, (fun () -> "one")
+    let check2 = c <> d, (fun () -> "two")
+    let check3 = e <> f, (fun () -> "three")
+
+    let validations = [ check; check2; check3 ]
+
+    seq {
+        for (validation, action) in validations do
+            if validation then yield action()
+        }
+        
+test |> Seq.toList
 
 // Should return a collection of errors
 
