@@ -66,6 +66,10 @@ open FSharp.Data.HttpRequestHeaders
 
 (*** define: utility ***)
 
+type Result<'TSuccess,'TError> = 
+    | Success of 'TSuccess 
+    | Error of 'TError
+
 let union a b = (a:IEnumerable<'a>).Union(b)
 let isEmpty s = String.IsNullOrWhiteSpace(s)
 let exists s = not <| String.IsNullOrEmpty(s)
@@ -165,7 +169,8 @@ module ActiveDirectory =
     /// Yields users matching the provided name pattern
     let usersMatching name = findUsersMatching name
 
-    
+
+
 (*** hide ***)
 
 module VismaEnterpriseAnticorruption = 
@@ -316,10 +321,12 @@ module VismaEnterprise =
 
         let safeAction action errorMessage =
             try
-                action ()
+                Success (action ())
             with
             // The webservice returns "bad request" (code 400) to indicate an internal server error
-            | :? WebException as webEx -> failwith (webEx.Response.ResponseUri.ToString() + " ") + errorMessage
+            | :? WebException as webEx -> 
+                
+                Error (sprintf "Error [%s]: %s \r\n%s " (webEx.Response.ResponseUri.ToString()) errorMessage webEx.StackTrace)
 
         let putContent action message = safeAction (fun () -> action |> put) message
 
@@ -382,7 +389,7 @@ module Integration =
     module Actions =
 
         let (|IsUnregistered|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
-        let (|IsMissingInitials|_|) (vu:VismaEnterprise.User) = if not <| exists vu.Initials then Some adu else None
+        let (|IsMissingInitials|_|) (vu:VismaEnterprise.User) = if not <| exists vu.Initials then Some vu else None
         let (|IsMissing|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
         let (|IsInactive|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
         let (|IsMissingEmail|_|) (adu:ActiveDirectory.User) = if not <| exists adu.Email then Some adu else None
@@ -398,11 +405,11 @@ module Integration =
 
         let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
             match adu, vu with
-            | IsMissing (adu), vu -> Deactivate
+            | IsMissing(adu), vu -> Deactivate
             | IsInactive(adu), vu -> Deactivate
             | IsMissingEmail(adu), vu -> Ignore
-            | adu, IsUnregistered(vu) -> Add
             | adu, IsMissingInitials(vu) -> Ignore
+            | adu, IsUnregistered(vu) -> Add
             | user when user |> needsUpdating -> Update
             | _ -> Ignore
 
@@ -466,6 +473,13 @@ module Integration =
         | Deactivate -> VismaEnterprise.UserService.deactivateUser vu.VismaId vu.Initials |> ignore
 
     let processEmployeeActions actions = actions |> Seq.map processEmployeeAction
+
+
+
+// Should return a collection of errors
+
+
+
 
 
 
