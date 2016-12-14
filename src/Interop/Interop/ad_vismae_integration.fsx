@@ -74,21 +74,6 @@ let union a b = (a:IEnumerable<'a>).Union(b)
 let isEmpty s = String.IsNullOrWhiteSpace(s)
 let exists s = not <| String.IsNullOrEmpty(s)
 let safeString s = match s |> isNull with | true -> "" | _ -> s
-let inline (++) (lres : Result<string,string> list) (rres : Result<string, string>) = lres @ [ rres ]
-let rawr (lres : byref<Result<string,string> list>) (rres : Result<string, string>) = lres <- lres @ [ rres ]
-
-
-let y : Result<string,string> = Error "yo"
-let zzz = Error "ooo"
-let mutable foo = [zzz]
-rawr foo zzz
-
-
-foo <- (foo ++ y)
-foo ++ y
-foo
-let x = [Success "hey"] ++ y  // ++ [ (Error "Whaaaa") ]
-
 
 
 (*** define: ad-operations ***)
@@ -230,7 +215,7 @@ module VismaEnterprise =
             Email = "unknown@example.com"
             WorkPhone = ""
             MobilePhone = ""
-            Initials = ""
+            Initials = "000000"
             Type = "INTERNAL"
             GroupMembership = []
             DisplayName = ""
@@ -477,9 +462,12 @@ module Integration =
     let processEmployeeAction ((action, (au, vu)) : UpdateAction * (ActiveDirectory.User * VismaEnterprise.User)) : Result<string,string> list = 
         printfn "Processing %A command for %s (%s::%s)" action au.DisplayName vu.DisplayName vu.Initials
         match action with
-        | Ignore -> [ success ]
-        | Add -> [ VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.EmployeeId au.Email ]
-        | Update -> 
+        | Ignore     -> [ success ]
+        | Add        -> [ VismaEnterprise.UserService.createUser au.EmployeeId au.FormattedAccount au.FirstName au.LastName au.EmployeeId au.Email ]
+        | Deactivate -> [ VismaEnterprise.UserService.deactivateUser vu.VismaId vu.Initials ]
+        | Update     ->
+            //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
+            //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
             let email     = au.Email <> vu.Email, fun () -> [ VismaEnterprise.UserService.setEmail vu.VismaId au.Email ]
             let workphone = au.WorkPhone <> vu.WorkPhone, fun () -> [ VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone ]
             let mobile    = au.MobilePhone <> vu.MobilePhone, fun () -> [ VismaEnterprise.UserService.setMobile vu.VismaId au.MobilePhone ]
@@ -492,22 +480,8 @@ module Integration =
 
             let validations = [ email; workphone; mobile; aliases ]
 
-            seq { for (validation, action) in validations do
-                    if validation then yield! action () } |> Seq.toList
-
-            //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
-            //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
-
-//            if au.Email <> vu.Email then VismaEnterprise.UserService.setEmail vu.VismaId au.Email 
-//            if au.WorkPhone <> vu.WorkPhone then VismaEnterprise.UserService.setWorkPhone vu.VismaId au.WorkPhone 
-//            if au.MobilePhone <> vu.MobilePhone then VismaEnterprise.UserService.setMobile vu.VismaId au.MobilePhone 
-//            //if au.UserName <> vu.UserName then VismaEnterprise.WebService.s    ...   // the webservice currently has no username editing support
-//            //if au.DisplayName <> vu.DisplayName then VismaEnterprise.WebService....  // the webservice currently has no display name editing support
-//            if not <| vu.HasAllAliasesFor(au) then
-//                for alias in au.NecessaryAliases() do
-//                    if not <| vu.HasAlias(alias) then
-//                        VismaEnterprise.UserService.addAlias vu.VismaId alias 
-        | Deactivate -> [ VismaEnterprise.UserService.deactivateUser vu.VismaId vu.Initials ]
+            [ for (validation, action) in validations do
+                    if validation then yield! action () ]
 
     let processEmployeeActions actions = actions |> Seq.map processEmployeeAction
 
@@ -564,13 +538,15 @@ let rawr = 123
 
 
 #time
-let adUsers = ActiveDirectory.users() |> Seq.toList //|> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
+let adUsers = ActiveDirectory.usersMatching("Roald") |> Seq.toList |> List.where(fun u -> u.LastName.StartsWith("Brei")) //|> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
 #time
 #time
-let veUsers = VismaEnterprise.users() |> Seq.toList // |> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
+let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Roald")) |> Seq.take 0 |> Seq.toList 
 #time
 veUsers |> List.length
 adUsers |> List.length
+
+
 
 
 let aus = query { for a in adUsers do
@@ -600,20 +576,16 @@ query { for adu in aus do
     |> Seq.toList
 
 
-
-
 #time
 let badinitials = ["TELLER"; "SKYSS"; "OPUS"]
-let updateActions = Integration.employeeActions adUsers veUsers |> Seq.where (fun (a, (b, c)) -> (not <| badinitials.Contains(c.Initials)) && exists c.Initials) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
+let updateActions = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList |> Seq.where (fun (a, (b, c)) -> (not <| badinitials.Contains(c.Initials)) && exists c.Initials) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
 #time
-
-
 
 let mutable i = 0
 for action in updateActions do
     i <- i + 1
     printfn "Action %i" i
-    Integration.processEmployeeAction action
+    Integration.processEmployeeAction action |> ignore
 
 
 
