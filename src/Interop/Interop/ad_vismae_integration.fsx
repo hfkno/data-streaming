@@ -394,7 +394,7 @@ module Integration =
         let success = Success ""
         let (|IsUnregistered|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
         let (|IsMissingInitials|_|) (vu:VismaEnterprise.User) = if not <| exists vu.Initials then Some vu else None
-        let (|IsMissing|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
+        let (|IsNotRegistered|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
         let (|IsInactive|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
         let (|IsMissingEmail|_|) (adu:ActiveDirectory.User) = if not <| exists adu.Email then Some adu else None
         
@@ -409,8 +409,8 @@ module Integration =
 
         let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
             match adu, vu with
-            | IsMissing(adu), vu -> Deactivate
             | IsInactive(adu), vu -> Deactivate
+            | IsNotRegistered(adu), vu -> Ignore
             | IsMissingEmail(adu), vu -> Ignore
             | adu, IsMissingInitials(vu) -> Ignore
             | adu, IsUnregistered(vu) -> Add
@@ -538,10 +538,10 @@ let rawr = 123
 
 
 #time
-let adUsers = ActiveDirectory.usersMatching("Roald") |> Seq.toList |> List.where(fun u -> u.LastName.StartsWith("Brei")) //|> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
+let adUsers = ActiveDirectory.usersMatching("Kari M*") |> Seq.toList |> List.where(fun u -> u.LastName.StartsWith("N")) //|> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
 #time
 #time
-let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Roald")) |> Seq.take 0 |> Seq.toList 
+let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Kjartan")) |> Seq.toList |> Seq.take 0 |> Seq.toList 
 #time
 veUsers |> List.length
 adUsers |> List.length
@@ -590,7 +590,7 @@ for action in updateActions do
 
 
 
-let updateTest = Integration.employeeActions adUsers veUsers |> Seq.skip 82 |> Seq.head
+let updateTest = Integration.employeeActions adUsers veUsers |> Seq.head
 Integration.processEmployeeAction updateTest
 
 
