@@ -487,131 +487,68 @@ module Integration =
 
 
 
+module Test =
+    let doTest = 
 
-let test =
-    let a, b, c, d, e, f, g = 0, 2, 0, 3, 0, 0, 0
-    let check = a <> b, (fun () -> "one")
-    let check2 = c <> d, (fun () -> "two")
-    let check3 = e <> f, (fun () -> "three")
+        let adUsers = ActiveDirectory.usersMatching("Kari M*") |> Seq.toList |> List.where(fun u -> u.LastName.StartsWith("N")) //|> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
+        let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Kjartan")) |> Seq.toList |> Seq.take 0 |> Seq.toList 
+        adUsers, veUsers
 
-    let validations = [ check; check2; check3 ]
-
-    seq {
-        for (validation, action) in validations do
-            if validation then yield action()
-        }
+    let showUsers (adUsers : ActiveDirectory.User list, veUsers : VismaEnterprise.User list) =
         
-test |> Seq.toList
-
-// Should return a collection of errors
-
-
-
-
-
-
-let testVe = 
-        [ { VismaEnterprise.User.Default with DisplayName = "One"; Initials = "123"; VismaId = 123 }
-          { VismaEnterprise.User.Default with DisplayName = "Two"; Initials = "1234"; VismaId = 123 }
-          { VismaEnterprise.User.Default with DisplayName = "Three"; Initials = "12345"; VismaId = 123 }
-          { VismaEnterprise.User.Default with DisplayName = "Four"; Initials = "AABA"; VismaId = 123 }
-          { VismaEnterprise.User.Default with DisplayName = "Five"; Initials = "ABBA"; VismaId = 123 }
-          { VismaEnterprise.User.Default with DisplayName = "Not in VE"; Initials = "RAWR"; VismaId = 123 }
-        ] |> List.toSeq
-
-let testAd = 
-        [ { ActiveDirectory.User.Default with DisplayName = "One"; EmployeeId = "123"; Account="" }
-          { ActiveDirectory.User.Default with DisplayName = "Two"; EmployeeId = "1234"; Account="" }
-          { ActiveDirectory.User.Default with DisplayName = "Three"; EmployeeId = "12345"; Account="" }
-          { ActiveDirectory.User.Default with DisplayName = "Four"; EmployeeId = "123456"; Account="AABA" }
-          { ActiveDirectory.User.Default with DisplayName = "Five"; EmployeeId = "2121"; Account="ABBA" }
-          { ActiveDirectory.User.Default with DisplayName = "Not In AD"; EmployeeId = "999"; Account="OLD" }
-        ] |> List.toSeq
+        let aus = query { for a in adUsers do
+                          //where (a.DisplayName.Contains("Andre"))
+                          sortBy a.EmployeeId
+                          select a } 
+                          //|> Seq.take(150) 
+                          |> Seq.toList
 
 
-Integration.employeeActionsVerbose testAd testVe |> Seq.toList
-Integration.employeeActions testAd testVe
-
-#time
-let rawr = 123
-#time
-
-
-#time
-let adUsers = ActiveDirectory.usersMatching("Kari M*") |> Seq.toList |> List.where(fun u -> u.LastName.StartsWith("N")) //|> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
-#time
-#time
-let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Kjartan")) |> Seq.toList |> Seq.take 0 |> Seq.toList 
-#time
-veUsers |> List.length
-adUsers |> List.length
+        let ves = query { for a in veUsers do
+                          //where (a.DisplayName.Contains("Andre"))
+                          sortBy a.Initials
+                          select a } 
+                          //|> Seq.take(150) 
+                          |> Seq.toList
 
 
 
+        //Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
+        Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), b.Email, b.EmployeeId, c.Initials, c.DisplayName) |> Seq.toList 
+        
+    let doUpdate (adUsers : ActiveDirectory.User list, veUsers : VismaEnterprise.User list) = 
 
-let aus = query { for a in adUsers do
-                  //where (a.DisplayName.Contains("Andre"))
-                  sortBy a.EmployeeId
-                  select a } 
-                  //|> Seq.take(150) 
-                  |> Seq.toList
-
-
-let ves = query { for a in veUsers do
-                  //where (a.DisplayName.Contains("Andre"))
-                  sortBy a.Initials
-                  select a } 
-                  //|> Seq.take(150) 
-                  |> Seq.toList
+        let badinitials = ["TELLER"; "SKYSS"; "OPUS"]
+        let updateActions = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList |> Seq.where (fun (a, (b, c)) -> (not <| badinitials.Contains(c.Initials)) && exists c.Initials) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
 
 
+        let mutable i = 0
+        for action in updateActions do
+            i <- i + 1
+            printfn "Action %i" i
+            Integration.processEmployeeAction action |> ignore
 
-Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
-Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), b.Email, b.EmployeeId, c.Initials, c.DisplayName) |> Seq.toList 
-let arne = Integration.employeeActions aus ves |> Seq.filter (fun (a, (b,c)) -> c.Initials = "ARNNESS") |> Seq.toList |> Seq.head |> snd
-query { for adu in aus do
-        join vu in ves on (adu.Account.ToUpper() = vu.Initials)
-        select (adu, vu) } 
-    |> Seq.map (Integration.Actions.action)
-    |> Seq.toList
-
-
-#time
-let badinitials = ["TELLER"; "SKYSS"; "OPUS"]
-let updateActions = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList |> Seq.where (fun (a, (b, c)) -> (not <| badinitials.Contains(c.Initials)) && exists c.Initials) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
-#time
-
-let mutable i = 0
-for action in updateActions do
-    i <- i + 1
-    printfn "Action %i" i
-    Integration.processEmployeeAction action |> ignore
+    let doSingleUpdate (adUsers : ActiveDirectory.User list, veUsers : VismaEnterprise.User list) =
+        let updateTest = Integration.employeeActions adUsers veUsers |> Seq.head
+        Integration.processEmployeeAction updateTest
 
 
+    let example =
+
+        (*** define: list-users ***)
+
+        // Get and print all users
+        let users = ActiveDirectory.users() |> Seq.toList
+        for u in users do printfn "%A\r\n" u
 
 
-let updateTest = Integration.employeeActions adUsers veUsers |> Seq.head
-Integration.processEmployeeAction updateTest
+        let aadwag = ActiveDirectory.usersMatching("Arne*") |> Seq.toList
+        let testt = ActiveDirectory.usersMatching("Tonje*") |> Seq.toList
+        let fagskole = ActiveDirectory.usersMatching("Fagsko*") |> Seq.toList
 
-
-
-let ff = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList
-
-
-(*** define: list-users ***)
-
-// Get and print all users
-let users = ActiveDirectory.users() |> Seq.toList
-for u in users do printfn "%A\r\n" u
-
-
-let aadwag = ActiveDirectory.usersMatching("Arne*") |> Seq.toList
-let testt = ActiveDirectory.usersMatching("Tonje*") |> Seq.toList
-let fagskole = ActiveDirectory.usersMatching("Fagsko*") |> Seq.toList
-
-let dis = query { 
-            for d in users do
-            where (not <| d.IsActive)
-            select d } |> Seq.toList
-dis
+        let dis = query { 
+                    for d in users do
+                    where (not <| d.IsActive)
+                    select d } |> Seq.toList
+        dis
 
