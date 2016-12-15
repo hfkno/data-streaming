@@ -20,6 +20,22 @@ Exchange offers C# wrappers, but they are heavyweight and uninteresting.  Powers
 
 
 
+#load "ad_vismae_integration.fsx"
+open Ad_vismae_integration
+
+let webUsers = 
+    [ { VismaEnterprise.User.Default with DisplayName = "hi1" }
+      { VismaEnterprise.User.Default with DisplayName = "hi2" }
+      { VismaEnterprise.User.Default with DisplayName = "hi3" }
+      { VismaEnterprise.User.Default with DisplayName = "hi4" }
+     ]
+
+
+
+
+
+
+
 
 
 

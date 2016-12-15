@@ -39,11 +39,12 @@ NUGET
       Newtonsoft.Json (>= 9.0.1)
       NUnit (>= 3.4.1)
       System.Collections.Immutable (>= 1.1.36)
-    Autofac (4.2)
+    Autofac (4.2.1)
       NETStandard.Library (>= 1.6) - framework: >= netstandard11
       System.ComponentModel (>= 4.0.1) - framework: >= netstandard11
     Destructurama.FSharp (1.0.14)
       Serilog (>= 1.4.204)
+    FAKE.Lib (4.46.1)
     FSharp.Compiler.Service (2.0.0.6)
     FSharp.Core (4.0.0.1)
     FSharp.Data (2.3.2)
@@ -645,7 +646,7 @@ NUGET
       System.Text.Encoding (>= 4.3) - framework: dnxcore50, >= netstandard13
       System.Threading (>= 4.3) - framework: dnxcore50, >= netstandard13
       System.Xml.ReaderWriter (>= 4.3) - framework: dnxcore50, netstandard10, >= netstandard13
-    Wire (0.8.1)
+    Wire (0.8.2)
       Microsoft.CSharp (>= 4.0.1) - framework: >= netstandard16
       NETStandard.Library (>= 1.6) - framework: >= netstandard16
     Zlib.Portable (1.11) - framework: >= netstandard11, portable-net45+sl5+win8, portable-net45+win8, portable-net45+win8+wp8+wpa81

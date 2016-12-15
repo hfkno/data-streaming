@@ -6,6 +6,7 @@ nuget Akka.FSharp
 nuget Akka.Serialization.Wire
 nuget Akka.TestKit.NUnit3
 nuget Akka.Logger.Serilog
+nuget FAKE.Lib
 nuget FSharp.Data
 nuget FSharp.Data.TypeProviders
 nuget FSharp.Formatting

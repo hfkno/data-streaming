@@ -55,6 +55,7 @@
     <Compile Include="kafka-interop.fsx" />
     <None Include="vismae_amestoksv_integration.fsx" />
     <None Include="ad_vismae_integration.fsx" />
+    <None Include="vismae_exchange_integration.fsx" />
     <None Include="make-docs.fsx" />
   </ItemGroup>
   <ItemGroup>
