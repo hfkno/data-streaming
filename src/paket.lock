@@ -46,6 +46,7 @@ NUGET
       Serilog (>= 1.4.204)
     FAKE.Lib (4.46.1)
     FSharp.Compiler.Service (2.0.0.6)
+    FSharp.Configuration (0.6.4)
     FSharp.Core (4.0.0.1)
     FSharp.Data (2.3.2)
       Zlib.Portable (>= 1.11) - framework: >= netstandard11, portable-net45+sl5+win8, portable-net45+win8, portable-net45+win8+wp8+wpa81
@@ -85,6 +86,7 @@ NUGET
       System.Runtime.Extensions (>= 4.3) - framework: dnxcore50, >= netstandard13
       System.Runtime.InteropServices (>= 4.3) - framework: dnxcore50, >= netstandard13
       System.Threading (>= 4.3) - framework: dnxcore50, >= netstandard13
+    Microsoft.Exchange.WebServices (2.2)
     Microsoft.NETCore.Platforms (1.1) - framework: >= netstandard10
     Microsoft.NETCore.Targets (1.1) - framework: >= netstandard10
     Microsoft.Win32.Primitives (4.3) - framework: >= netstandard13

@@ -488,7 +488,7 @@ module Integration =
 
 
 module Test =
-    let doTest = 
+    let doTest () = 
 
         let adUsers = ActiveDirectory.usersMatching("Kari M*") |> Seq.toList |> List.where(fun u -> u.LastName.StartsWith("N")) //|> Seq.where(fun u -> u.DisplayName.StartsWith("A")) |> Seq.toList
         let veUsers = VismaEnterprise.users() |> Seq.where(fun u -> u.DisplayName.StartsWith("Kjartan")) |> Seq.toList |> Seq.take 0 |> Seq.toList 
@@ -533,7 +533,7 @@ module Test =
         Integration.processEmployeeAction updateTest
 
 
-    let example =
+    let example () =
 
         (*** define: list-users ***)
 

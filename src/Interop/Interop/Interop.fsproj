@@ -57,6 +57,8 @@
     <None Include="ad_vismae_integration.fsx" />
     <None Include="vismae_exchange_integration.fsx" />
     <None Include="make-docs.fsx" />
+    <Content Include="sensitive.config" />
+    <None Include="configuration.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Akka.DI.Core">

@@ -9,6 +9,7 @@ nuget Akka.Logger.Serilog
 nuget FAKE.Lib
 nuget FSharp.Data
 nuget FSharp.Data.TypeProviders
+nuget FSharp.Configuration
 nuget FSharp.Formatting
 nuget FsPickler
 nuget FsPowerPack.Community
@@ -18,3 +19,4 @@ nuget Serilog
 nuget Serilog.Sinks.Literate
 nuget Destructurama.FSharp
 nuget Akka.NET.FSharp.API.Extensions
+nuget Microsoft.Exchange.WebServices
