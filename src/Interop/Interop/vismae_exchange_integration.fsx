@@ -33,11 +33,13 @@ From : https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
 *)
 
 #r "../../packages/Microsoft.Exchange.WebServices/lib/40/Microsoft.Exchange.WebServices.dll"
+#load "configuration.fsx"
 #load "ad_vismae_integration.fsx"
 
 open System
 open Microsoft.Exchange.WebServices.Data
 open Ad_vismae_integration
+open Configuration
 
 let webUsers = 
     [ { VismaEnterprise.User.Default with DisplayName = "hi1" }
@@ -49,12 +51,26 @@ let webUsers =
 
 //PowerShell.Create().AddScript()
 
-let email, pass, domain = "", "", "mail.hfk.no"
+let email, pass, domain = Configuration.ExchangeAdmin.UserName, Configuration.ExchangeAdmin.Password, "mail.hfk.no"
+
+
 let service = new ExchangeService()
 service.Credentials <- new WebCredentials(email, pass, domain)
 service.Url <- new Uri("https://mail.hfk.no/EWS/Exchange.asmx")
+let i : int [] = [|2|]
+let mailboxQuery = [| new MailboxQuery("Aaron", [|  |]) |]
+let searchParameters = new SearchMailboxesParameters(SearchQueries = mailboxQuery)
+let searchBox = service.SearchMailboxes(searchParameters) |> Seq.head
+let userMailbox = new Mailbox(Configuration.ExchangeAdmin.UserName)
+let delegates = service.GetDelegates(userMailbox, true)
 
+let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe )
 
+let delegateUser = new DelegateUser
+
+service.AddDelegates(userMailbox, scope, )
+
+//service.AddDelegates(usermailbox, MeetingRequestsDeliveryScope.DelegatesAndMe, [| delegateuser |])
 
 
 

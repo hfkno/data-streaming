@@ -49,6 +49,7 @@
     <None Include="packages.config" />
     <None Include="docker-operations.fsx" />
     <Compile Include="AkkaExtensions.fs" />
+    <None Include="configuration.fsx" />
     <None Include="akka_basics.fsx" />
     <None Include="bootcamp_ch_1.fsx" />
     <None Include="swagger.fsx" />
@@ -57,8 +58,8 @@
     <None Include="ad_vismae_integration.fsx" />
     <None Include="vismae_exchange_integration.fsx" />
     <None Include="make-docs.fsx" />
+    <Content Include="config.config" />
     <Content Include="sensitive.config" />
-    <None Include="configuration.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Akka.DI.Core">
