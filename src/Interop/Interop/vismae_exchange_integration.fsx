@@ -37,6 +37,10 @@ From : https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
 
 
 
+// TODO: show error for users missing email addresses in Visma E
+
+
+
 #r "../../packages/Microsoft.Exchange.WebServices/lib/40/Microsoft.Exchange.WebServices.dll"
 #load "configuration.fsx"
 #load "ad_vismae_integration.fsx"
@@ -57,21 +61,21 @@ let uname, pass, domain, delegateEmail, fakturaGroups
       [ "WEB_EHANDEL"; "WEB_FAKTURABEHANDLING"; "WEB_ØKONOMI"; "WEB_EORDRE" ]
 
 
+//
+//let service = new ExchangeService(
+//                    Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
+//                    Credentials = new WebCredentials(uname, pass, "hfk"))
+//service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, "aarcomy@hfk.no")
+//let userMailbox = new Mailbox("aarcomy@hfk.no") // "anette.ovreas@hfk.no")
+//let delegates = service.GetDelegates(userMailbox, true)
+//for d in delegates.DelegateUserResponses do//for d in delegates do
+//    printfn "%s" d.DelegateUser.UserId.DisplayName
+
+
 
 let service = new ExchangeService(
                     Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
-                    Credentials = new WebCredentials("adm_aarcomy", "", "hfk"))
-service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, "aarcomy@hfk.no")
-let userMailbox = new Mailbox("aarcomy@hfk.no") // "anette.ovreas@hfk.no")
-let delegates = service.GetDelegates(userMailbox, true)
-for d in delegates.DelegateUserResponses do//for d in delegates do
-    printfn "%s" d.DelegateUser.UserId.DisplayName
-
-
-
-let service = new ExchangeService(
-                    Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
-                    Credentials = new WebCredentials("adm_aarcomy", "", "hfk"))
+                    Credentials = new WebCredentials(uname, pass, domain))
 
 
 
@@ -87,8 +91,9 @@ let fakturaUsers () =
 
     query {
         for u in allUsers do
-        where (fakturaUserIds.Contains(u.VismaId))
-        select u.Email
+        where (fakturaUserIds.Contains(u.VismaId) && (not <| String.IsNullOrWhiteSpace(u.Email)))
+        sortBy u.VismaId
+        select (u.VismaId, u.Email)
     } 
     |> Seq.toList
 
@@ -96,17 +101,16 @@ let fakturaUsers () =
 let fu = fakturaUsers ()
 
 
-let showDelegates userEmail = 
-
+let showDelegates (vismaId, userEmail) = 
+    printfn "showing user : %i - %s"vismaId userEmail
     service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, userEmail)
     let userMailbox = new Mailbox(userEmail)
 
     let delegates = service.GetDelegates(userMailbox, true)
     for d in delegates.DelegateUserResponses do
-        printfn "%s" d.DelegateUser.UserId.DisplayName
-
-showDelegates "aarcomy@hfk.no"
-
+        match d.DelegateUser with
+        | null -> printfn "Got a null user back from user %i:%s" vismaId userEmail
+        | _    -> printfn "%s" d.DelegateUser.UserId.DisplayName
 
 
 for u in fu do showDelegates u
@@ -120,4 +124,7 @@ let setDelegate (service : ExchangeService) (delegateEmail : string) (forUser : 
     service.AddDelegates(userMailbox, scope, delegateUser)
 
 
+for (id, email) in fu do 
+    printfn "Setting delegate for %i:%s" id email
+    setDelegate service delegateEmail email |> ignore
 
