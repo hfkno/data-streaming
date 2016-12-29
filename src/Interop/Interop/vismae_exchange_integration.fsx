@@ -35,32 +35,81 @@ From : https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
     mail.hfk.no
 *)
 
+
+
 #r "../../packages/Microsoft.Exchange.WebServices/lib/40/Microsoft.Exchange.WebServices.dll"
 #load "configuration.fsx"
 #load "ad_vismae_integration.fsx"
 
 open System
+open System.Linq
 open Microsoft.Exchange.WebServices.Data
 open Ad_vismae_integration
 open Configuration
 
 
-let uname, pass, domain, delegateEmail
+
+let uname, pass, domain, delegateEmail, fakturaGroups
     = Configuration.ExchangeAdmin.UserName, 
       Configuration.ExchangeAdmin.Password, 
       Configuration.ExchangeAdmin.Domain, 
-      "vismapost@hfk.no"
+      "vismapost@hfk.no",
+      [ "WEB_EHANDEL"; "WEB_FAKTURABEHANDLING"; "WEB_ØKONOMI"; "WEB_EORDRE" ]
+
+
 
 let service = new ExchangeService(
                     Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
-                    Credentials = new WebCredentials(uname, pass, domain))
-
+                    Credentials = new WebCredentials("adm_aarcomy", "", "hfk"))
 service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, "aarcomy@hfk.no")
 let userMailbox = new Mailbox("aarcomy@hfk.no") // "anette.ovreas@hfk.no")
-
 let delegates = service.GetDelegates(userMailbox, true)
-for d in delegates.DelegateUserResponses do
+for d in delegates.DelegateUserResponses do//for d in delegates do
     printfn "%s" d.DelegateUser.UserId.DisplayName
+
+
+
+let service = new ExchangeService(
+                    Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
+                    Credentials = new WebCredentials("adm_aarcomy", "", "hfk"))
+
+
+
+
+
+let fakturaUsers () =
+    let allUsers = VismaEnterprise.UserService.users()
+    let allGroups = VismaEnterprise.UserService.groups() |> Seq.toList
+
+    let fakturaUserIds = set [ for g in allGroups do
+                                   if fakturaGroups.Contains(g.Name) then
+                                       for m in g.Members do yield m ]
+
+    query {
+        for u in allUsers do
+        where (fakturaUserIds.Contains(u.VismaId))
+        select u.Email
+    } 
+    |> Seq.toList
+
+
+let fu = fakturaUsers ()
+
+
+let showDelegates userEmail = 
+
+    service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, userEmail)
+    let userMailbox = new Mailbox(userEmail)
+
+    let delegates = service.GetDelegates(userMailbox, true)
+    for d in delegates.DelegateUserResponses do
+        printfn "%s" d.DelegateUser.UserId.DisplayName
+
+showDelegates "aarcomy@hfk.no"
+
+
+
+for u in fu do showDelegates u
 
 
 let setDelegate (service : ExchangeService) (delegateEmail : string) (forUser : string) = 
