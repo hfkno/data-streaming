@@ -189,10 +189,19 @@ module VismaEnterprise =
 
     open VismaEnterpriseAnticorruption
 
-    type Group = { Id : int }
+    type Group = 
+        { 
+            Id : int
+            Name : string
+            Members : int list
+        }
+    with
+        static member Default =
+            { Id = -1; Name = "Unknown group"; Members = [] }
 
     type Username = 
-        | DomainUser of name : string | Alias of name : string
+        | DomainUser of name : string 
+        | Alias      of name : string
     with
         static member name uname =
             match uname with | DomainUser v | Alias v -> v
@@ -205,7 +214,7 @@ module VismaEnterprise =
         MobilePhone : string
         Initials : string       // must be unique
         Type : string           // INTERNAL or EXTERNAL
-        GroupMembership : Group list
+        GroupMembership : int list
         DisplayName : string
         UserName : string
         UserNames : Username list }
@@ -274,13 +283,36 @@ module VismaEnterprise =
                     </user>
                  </users>"
 
+                 
+            [<Literal>]
+            let fullGroupList = 
+                "<groups xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:noNamespaceSchemaLocation=\"http://hfk-app01:8090/enterprise_ws/schemas/groups-1.0.xsd\">
+                <group groupId=\"5499\" groupName=\"REGISTRERER BUDSJETT\">
+                    <members>
+                        <user id=\"17651\"/>
+                        <user id=\"12188\"/>
+                        <user id=\"10877\"/>
+                        <user id=\"20660\"/>
+                        <user id=\"7046\"/>
+                        <user id=\"13931\"/>
+                        <user id=\"13796\"/>
+                    </members>
+                </group>
+                <group groupId=\"5288\" groupName=\"REGISTRERER FAKTURERING\">
+                    <members>
+                        <user id=\"8171\"/>
+                    </members>
+                </group>
+            </groups>"
+
+
             [<Literal>]
             let uName = "AARCOMY"
             [<Literal>]
             let pass = "abc1234"
 
-            let fullRequest httpMethod uriTail  (formValues : (string * string) list option) =
-                let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/user/%s" uriTail
+            let fullRequest httpMethod (uriTail : string) (formValues : (string * string) list option) =
+                let requestString = sprintf "http://hfk-app01:8090/enterprise_ws/secure/%s" uriTail
                 match formValues with
                 | Some values ->
                     Http.RequestString
@@ -294,12 +326,24 @@ module VismaEnterprise =
                         httpMethod = httpMethod,
                         headers = [ BasicAuth uName pass ] )
 
-            let request uriTail = fullRequest "GET" uriTail None
-            let simpleRequest httpMethod uriTail = fullRequest httpMethod uriTail None
+            let groupRequest = fullRequest "GET" "group" None
+
+            let fullUserRequest httpMethod uriTail (formValues : (string * string) list option) =
+                let urlTail = sprintf "user/%s" uriTail
+                fullRequest httpMethod urlTail formValues
+
+            let request uriTail = fullUserRequest "GET" uriTail None
+            let simpleRequest httpMethod uriTail = fullUserRequest httpMethod uriTail None
             let put = simpleRequest "PUT"
 
             type VeServiceUser  = XmlProvider<fullUser>
             type VeServiceUsers = XmlProvider<fullUserList>
+            type VeServiceGroups = XmlProvider<fullGroupList>
+
+            let toGroup (group : VeServiceGroups.Group) : Group =
+                { Id = group.GroupId
+                  Name = group.GroupName
+                  Members = [ for u in group.Members.Users do yield u.Id ] }
 
             let toUser (user: VeServiceUsers.User) : User = 
                 { VismaId = user.UserId
@@ -308,7 +352,7 @@ module VismaEnterprise =
                   MobilePhone = user.MobilePhone
                   Initials = user.Initials
                   Type = user.Usertype
-                  GroupMembership = [ for g in user.GroupMemberships do yield { Group.Id = g.Id } ]
+                  GroupMembership = [ for g in user.GroupMemberships do yield g.Id ]
                   DisplayName = user.Name.DisplayName
                   UserName = user.Usernames.Username
                   UserNames = [ for a in user.Usernames.Alias do yield Username.Alias a.Username ] }
@@ -319,6 +363,12 @@ module VismaEnterprise =
             (usersXml |> VeServiceUsers.Parse)
                 .Users 
                 |> Seq.map toUser
+
+        let groupXml = groupRequest
+        let groups () = 
+            (groupXml |> VeServiceGroups.Parse)
+                .Groups 
+                |> Seq.map toGroup
 
         let safeAction action errorMessage =
             try
@@ -353,7 +403,7 @@ module VismaEnterprise =
 
         let addAlias userId alias =
             safeAction 
-                (fun () -> fullRequest "POST" (sprintf "%i/username" userId) (Some [ "user", alias ])) 
+                (fun () -> fullUserRequest "POST" (sprintf "%i/username" userId) (Some [ "user", alias ])) 
                 (sprintf "Could not set user %i alias '%s'" userId alias)
 
 //        // Did not delete aliases as expected... :
@@ -364,7 +414,7 @@ module VismaEnterprise =
             let urlTail = sprintf "new/firstname/%s/lastname/%s/initials/%s/workemail/%s" firstName lastName initials email
             let formValues = [ "alias", (sprintf "%s;%s" employeeId userName ) ]
             safeAction 
-                (fun () -> fullRequest "POST" urlTail (Some formValues)) 
+                (fun () -> fullUserRequest "POST" urlTail (Some formValues)) 
                 (sprintf "Could not create user '%s'" initials)
 
         /// Deletes the users alias, OR sets the user passive if the alias is the same as the users initials 
@@ -377,7 +427,6 @@ module VismaEnterprise =
         let deactivateUser userId initialsOrAlias = deleteUser userId initialsOrAlias
 
     let users () = UserService.users ()
-
 
 
 (*** define: synch ***)

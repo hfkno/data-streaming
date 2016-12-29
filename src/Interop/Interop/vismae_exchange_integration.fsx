@@ -44,13 +44,6 @@ open Microsoft.Exchange.WebServices.Data
 open Ad_vismae_integration
 open Configuration
 
-let webUsers = 
-    [ { VismaEnterprise.User.Default with DisplayName = "hi1" }
-      { VismaEnterprise.User.Default with DisplayName = "hi2" }
-      { VismaEnterprise.User.Default with DisplayName = "hi3" }
-      { VismaEnterprise.User.Default with DisplayName = "hi4" }
-     ]
-
 
 let uname, pass, domain, delegateEmail
     = Configuration.ExchangeAdmin.UserName, 
