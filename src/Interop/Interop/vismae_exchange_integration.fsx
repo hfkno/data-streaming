@@ -38,7 +38,7 @@ From : https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
 
 
 // TODO: show error for users missing email addresses in Visma E
-
+// TODO: Missing delegates on a specific user: Hildegunn.Fischer@hfk.no
 
 
 #r "../../packages/Microsoft.Exchange.WebServices/lib/40/Microsoft.Exchange.WebServices.dll"
@@ -101,6 +101,7 @@ let fakturaUsers () =
 let fu = fakturaUsers ()
 
 
+
 let showDelegates (vismaId, userEmail) = 
     printfn "showing user : %i - %s"vismaId userEmail
     service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, userEmail)
@@ -114,6 +115,23 @@ let showDelegates (vismaId, userEmail) =
 
 
 for u in fu do showDelegates u
+showDelegates (6659, "Hildegunn.Fischer@hfk.no")
+
+
+let hasDelegate (vismaId, userEmail) (delegateEmail:string) = 
+    service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, userEmail)
+    let userMailbox = new Mailbox(userEmail)
+    let delegates = service.GetDelegates(userMailbox, true)
+
+    delegates.DelegateUserResponses.Any(fun d -> 
+        d.DelegateUser.UserId.PrimarySmtpAddress.ToLower() = delegateEmail.ToLower())
+
+
+
+for (i,e) in fu do
+    if not <| hasDelegate (i, e) delegateEmail then
+        printfn "Missing delegate - user %i:%s lacks email delegation to %s" i e delegateEmail
+
 
 
 let setDelegate (service : ExchangeService) (delegateEmail : string) (forUser : string) = 
@@ -123,6 +141,7 @@ let setDelegate (service : ExchangeService) (delegateEmail : string) (forUser : 
     let userMailbox = new Mailbox(forUser)
     service.AddDelegates(userMailbox, scope, delegateUser)
 
+setDelegate service delegateEmail "Hildegunn.Fischer@hfk.no" |> ignore
 
 for (id, email) in fu do 
     printfn "Setting delegate for %i:%s" id email
