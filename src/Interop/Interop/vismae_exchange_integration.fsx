@@ -52,65 +52,30 @@ let webUsers =
      ]
 
 
-//PowerShell.Create().AddScript()
+let uname, pass, domain, delegateEmail
+    = Configuration.ExchangeAdmin.UserName, 
+      Configuration.ExchangeAdmin.Password, 
+      Configuration.ExchangeAdmin.Domain, 
+      "vismapost@hfk.no"
 
-let email, pass, delegateEmail, domain 
-    = Configuration.ExchangeAdmin.UserName, Configuration.ExchangeAdmin.Password, "vismapost@hfk.no", "mail.hfk.no"
+let service = new ExchangeService(
+                    Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
+                    Credentials = new WebCredentials(uname, pass, domain))
 
-printfn "%s %s %s" email delegateEmail domain
-
-
-
-
-// Working code... Local account, only access to my own mailbox...
-let es = new ExchangeService()
-es.UseDefaultCredentials <- true
-es.Url <- new Uri("https://mail.hfk.no/EWS/Exchange.asmx")
-let emb = new Mailbox("aarcomy@hfk.no") // "anette.ovreas@hfk.no")
-let eds = es.GetDelegates(emb, true)
-let service = es
-
-// Explicit connection, not working...
-let service = new ExchangeService()
-service.Credentials <- new WebCredentials(@"adm_aarcomy", "", "hfk")
 service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, "aarcomy@hfk.no")
-
-
-// use impersonation FROM aarcomy TO adm_aarcomy??
-//service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, "aarcomy@hfk.no")
-
-service.Url <- new Uri("https://mail.hfk.no/EWS/Exchange.asmx")
 let userMailbox = new Mailbox("aarcomy@hfk.no") // "anette.ovreas@hfk.no")
+
 let delegates = service.GetDelegates(userMailbox, true)
-for d in delegates.DelegateUserResponses do//for d in delegates do
+for d in delegates.DelegateUserResponses do
     printfn "%s" d.DelegateUser.UserId.DisplayName
 
 
-let mailboxQuery = [| new MailboxQuery("Aaron", [|  |]) |]
-let searchParameters = new SearchMailboxesParameters(SearchQueries = mailboxQuery)
-let searchBox = service.SearchMailboxes(searchParameters) |> Seq.head
-let userMailbox = new Mailbox("aarcomy@hfk.no")
-let delegates = service.GetDelegates(userMailbox, true)
-service.TraceEnablePrettyPrinting <- true
-service.TraceEnabled <- true
-service.TraceFlags = TraceFlags.All
-
-Environment.UserDomainName
-Environment.UserName
-
-
-let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe )
-
-let delegateUser = new DelegateUser(delegateEmail)
-
-service.AddDelegates(userMailbox, scope, delegateUser)
-
-//service.AddDelegates(usermailbox, MeetingRequestsDeliveryScope.DelegatesAndMe, [| delegateuser |])
-
-
-
-//service.Url <- 
-//let url = service.AutodiscoverUrl(email, (fun (redirectionUrl:string) -> redirectionUrl.ToLower().StartsWith("https://") ))
+let setDelegate (service : ExchangeService) (delegateEmail : string) (forUser : string) = 
+    let delegateUser = new DelegateUser(delegateEmail)
+    let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
+    service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, forUser)
+    let userMailbox = new Mailbox(forUser)
+    service.AddDelegates(userMailbox, scope, delegateUser)
 
 
 

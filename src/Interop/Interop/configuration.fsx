@@ -16,18 +16,18 @@ open FSharp.Data
 
 module Configuration =
 
-    type Authentification = { UserName : string; Password : string; }
+    type Authentification = { UserName : string; Password : string; Domain : string }
 
     [<AutoOpen>]
     module private Implementation =
         let path = System.IO.Path.Combine [|__SOURCE_DIRECTORY__ ; "sensitive.config" |]
 
         type Settings = XmlProvider<"sensitive.config">
-        let content = Settings.GetSample()
+        let settings = Settings.GetSample()
 
     let ExchangeAdmin = 
-        let exadmin = content.Authentification.Exchangeadmin
-        { UserName = exadmin.Username; Password = exadmin.Password }
+        let exadmin = settings.Authentification.Exchangeadmin
+        { UserName = exadmin.Username; Password = exadmin.Password; Domain = exadmin.Domain }
 
 
 
