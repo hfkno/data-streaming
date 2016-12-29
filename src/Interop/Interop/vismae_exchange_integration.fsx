@@ -87,10 +87,9 @@ module Exchange =
                 | null -> false
                 | _ -> d.DelegateUser.UserId.PrimarySmtpAddress.ToLower() = delegateEmail.ToLower())
 
-    let setDelegate (delegateEmail : string) (forUser : string) = 
-        let delegateUser = new DelegateUser(delegateEmail)
+    let setDelegate (delegateEmail : string) (forUser : string) =
         let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
-        service.AddDelegates(impersonatedMailbox forUser, scope, delegateUser)
+        service.AddDelegates(impersonatedMailbox forUser, scope, new DelegateUser(delegateEmail))
 
 
 
@@ -109,21 +108,18 @@ module VismaEnterprise =
             where (fakturaUserIds.Contains(u.VismaId) && (not <| String.IsNullOrWhiteSpace(u.Email)))
             sortBy u.VismaId
             select (u.VismaId, u.Email)
-        } 
-        |> Seq.toList
+        } |> Seq.toList
 
 
 
 module Integration =
 
     let usersMissingDelegates delegateEmail =
-        for (i,e) in  VismaEnterprise.fakturaUsers() do
-            if not <| Exchange.hasDelegate (i, e) delegateEmail then
-                printfn "Missing delegate - user %i:%s lacks email delegation to %s" i e delegateEmail
-
+        for (id, email) in  VismaEnterprise.fakturaUsers() do
+            if not <| Exchange.hasDelegate (id, email) delegateEmail then
+                printfn "Missing delegate - user %i:%s lacks email delegation to %s" id email delegateEmail
 
     let setAllDelegates () =
-
         for (id, email) in VismaEnterprise.fakturaUsers() do 
             printfn "Setting delegate for %i:%s" id email
             Exchange.setDelegate delegateEmail email |> ignore
