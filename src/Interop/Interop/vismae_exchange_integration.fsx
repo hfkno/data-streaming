@@ -18,10 +18,8 @@ The Exchange webservice is located at "https://mail.hfk.no/EWS/Exchange.asmx"
 The user account used for this integration requires identity impersonation permission.
 See: https://msdn.microsoft.com/en-us/library/bb204095.aspx
 
-Exchange offers C# wrappers, but they are heavyweight and uninteresting.  Powershell user management against exchange has been used instead...
-
-Details on connecting to Exchange via Powershel: https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
-
+Powershell based solutions require heavy installs and difficult crendentials management.
+The Exchange Web Service has been chosen instead.
 
 
 
@@ -37,8 +35,8 @@ From : https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
 
 
 
-// TODO: show error for users missing email addresses in Visma E
-// TODO: Missing delegates on a specific user: Hildegunn.Fischer@hfk.no
+// TODO: log error for users missing email addresses in Visma E
+// TODO: Missing delegates on specific users: Hildegunn.Fischer@hfk.no, 6809:Tor.Oddvar.Sjovoll@hfk.no, 9137:Nevenka.Radic@hfk.no, 16088:Else.Vassenden@hfk.no, 16580:Kristoffer.Gilhus@hfk.no, 17333:Birthe.Haugen@hfk.no, 20531:Bente.Leivestad@hfk.no, 22032:Roald.Breistein@hfk.no, 22038:Hogne.Haktorson@hfk.no
 
 
 #r "../../packages/Microsoft.Exchange.WebServices/lib/40/Microsoft.Exchange.WebServices.dll"
@@ -52,7 +50,6 @@ open Ad_vismae_integration
 open Configuration
 
 
-
 let uname, pass, domain, delegateEmail, fakturaGroups
     = Configuration.ExchangeAdmin.UserName, 
       Configuration.ExchangeAdmin.Password, 
@@ -61,89 +58,77 @@ let uname, pass, domain, delegateEmail, fakturaGroups
       [ "WEB_EHANDEL"; "WEB_FAKTURABEHANDLING"; "WEB_ØKONOMI"; "WEB_EORDRE" ]
 
 
-//
-//let service = new ExchangeService(
-//                    Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
-//                    Credentials = new WebCredentials(uname, pass, "hfk"))
-//service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, "aarcomy@hfk.no")
-//let userMailbox = new Mailbox("aarcomy@hfk.no") // "anette.ovreas@hfk.no")
-//let delegates = service.GetDelegates(userMailbox, true)
-//for d in delegates.DelegateUserResponses do//for d in delegates do
-//    printfn "%s" d.DelegateUser.UserId.DisplayName
+
+module Exchange =
+
+    let service = new ExchangeService(
+                        Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
+                        Credentials = new WebCredentials(uname, pass, domain))
+
+
+    let impersonatedMailbox userEmail =
+        service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, userEmail)
+        new Mailbox(userEmail)
+
+    let getDelegatesFor userEmail = service.GetDelegates(impersonatedMailbox userEmail, true).DelegateUserResponses
+
+    let showDelegates (vismaId, userEmail) = 
+        printfn "showing user : %i - %s"vismaId userEmail
+        for d in getDelegatesFor userEmail do
+            match d.DelegateUser with
+            | null -> printfn "Got a null user back from a delegate of user %i:%s" vismaId userEmail
+            | _    -> printfn "%s" d.DelegateUser.UserId.DisplayName
+
+
+    let hasDelegate (vismaId, userEmail) (delegateEmail:string) =
+        (getDelegatesFor userEmail)
+            .Any(fun d -> 
+                match d.DelegateUser with
+                | null -> false
+                | _ -> d.DelegateUser.UserId.PrimarySmtpAddress.ToLower() = delegateEmail.ToLower())
+
+    let setDelegate (delegateEmail : string) (forUser : string) = 
+        let delegateUser = new DelegateUser(delegateEmail)
+        let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
+        service.AddDelegates(impersonatedMailbox forUser, scope, delegateUser)
 
 
 
-let service = new ExchangeService(
-                    Url = new Uri("https://mail.hfk.no/EWS/Exchange.asmx"), 
-                    Credentials = new WebCredentials(uname, pass, domain))
+module VismaEnterprise =
+
+    let fakturaUsers () =
+        let allUsers = VismaEnterprise.UserService.users()
+        let allGroups = VismaEnterprise.UserService.groups() |> Seq.toList
+
+        let fakturaUserIds = set [ for g in allGroups do
+                                       if fakturaGroups.Contains(g.Name) then
+                                           for m in g.Members do yield m ]
+
+        query {
+            for u in allUsers do
+            where (fakturaUserIds.Contains(u.VismaId) && (not <| String.IsNullOrWhiteSpace(u.Email)))
+            sortBy u.VismaId
+            select (u.VismaId, u.Email)
+        } 
+        |> Seq.toList
 
 
 
+module Integration =
+
+    let usersMissingDelegates delegateEmail =
+        for (i,e) in  VismaEnterprise.fakturaUsers() do
+            if not <| Exchange.hasDelegate (i, e) delegateEmail then
+                printfn "Missing delegate - user %i:%s lacks email delegation to %s" i e delegateEmail
 
 
-let fakturaUsers () =
-    let allUsers = VismaEnterprise.UserService.users()
-    let allGroups = VismaEnterprise.UserService.groups() |> Seq.toList
+    let setAllDelegates () =
 
-    let fakturaUserIds = set [ for g in allGroups do
-                                   if fakturaGroups.Contains(g.Name) then
-                                       for m in g.Members do yield m ]
-
-    query {
-        for u in allUsers do
-        where (fakturaUserIds.Contains(u.VismaId) && (not <| String.IsNullOrWhiteSpace(u.Email)))
-        sortBy u.VismaId
-        select (u.VismaId, u.Email)
-    } 
-    |> Seq.toList
-
-
-let fu = fakturaUsers ()
+        for (id, email) in VismaEnterprise.fakturaUsers() do 
+            printfn "Setting delegate for %i:%s" id email
+            Exchange.setDelegate delegateEmail email |> ignore
 
 
 
-let showDelegates (vismaId, userEmail) = 
-    printfn "showing user : %i - %s"vismaId userEmail
-    service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, userEmail)
-    let userMailbox = new Mailbox(userEmail)
-
-    let delegates = service.GetDelegates(userMailbox, true)
-    for d in delegates.DelegateUserResponses do
-        match d.DelegateUser with
-        | null -> printfn "Got a null user back from user %i:%s" vismaId userEmail
-        | _    -> printfn "%s" d.DelegateUser.UserId.DisplayName
-
-
-for u in fu do showDelegates u
-showDelegates (6659, "Hildegunn.Fischer@hfk.no")
-
-
-let hasDelegate (vismaId, userEmail) (delegateEmail:string) = 
-    service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, userEmail)
-    let userMailbox = new Mailbox(userEmail)
-    let delegates = service.GetDelegates(userMailbox, true)
-
-    delegates.DelegateUserResponses.Any(fun d -> 
-        d.DelegateUser.UserId.PrimarySmtpAddress.ToLower() = delegateEmail.ToLower())
-
-
-
-for (i,e) in fu do
-    if not <| hasDelegate (i, e) delegateEmail then
-        printfn "Missing delegate - user %i:%s lacks email delegation to %s" i e delegateEmail
-
-
-
-let setDelegate (service : ExchangeService) (delegateEmail : string) (forUser : string) = 
-    let delegateUser = new DelegateUser(delegateEmail)
-    let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
-    service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, forUser)
-    let userMailbox = new Mailbox(forUser)
-    service.AddDelegates(userMailbox, scope, delegateUser)
-
-setDelegate service delegateEmail "Hildegunn.Fischer@hfk.no" |> ignore
-
-for (id, email) in fu do 
-    printfn "Setting delegate for %i:%s" id email
-    setDelegate service delegateEmail email |> ignore
-
+//Integration.usersMissingDelegates delegateEmail
+//Integration.setAllDelegates()
