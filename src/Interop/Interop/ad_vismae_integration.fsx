@@ -601,3 +601,7 @@ module Test =
                     select d } |> Seq.toList
         dis
 
+
+//Test.doUpdate (ActiveDirectory.users() |> Seq.toList, VismaEnterprise.users() |> Seq.toList)
+
+
