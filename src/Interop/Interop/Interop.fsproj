@@ -60,6 +60,7 @@
     <None Include="make-docs.fsx" />
     <Content Include="config.config" />
     <Content Include="sensitive.config" />
+    <None Include="scratch.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Akka.DI.Core">

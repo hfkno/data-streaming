@@ -80,7 +80,7 @@ module Exchange =
             | _    -> printfn "%s" d.DelegateUser.UserId.DisplayName
 
 
-    let hasDelegate (vismaId, userEmail) (delegateEmail:string) =
+    let hasDelegate (userEmail) (delegateEmail:string) =
         (getDelegatesFor userEmail)
             .Any(fun d -> 
                 match d.DelegateUser with
@@ -89,7 +89,13 @@ module Exchange =
 
     let setDelegate (delegateEmail : string) (forUser : string) =
         let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
-        service.AddDelegates(impersonatedMailbox forUser, scope, new DelegateUser(delegateEmail))
+        try
+            service.AddDelegates(impersonatedMailbox forUser, scope, new DelegateUser(delegateEmail)) |> ignore
+            Success (sprintf "'%s' got delegate '%s'" forUser delegateEmail)
+        with
+            | :? Microsoft.Exchange.WebServices.Data.ServiceResponseException as e when e.Message.Contains("no mailbox associated") ->
+                Error (sprintf "No mailbox associated with '%s'" forUser)
+                               
 
 
 
@@ -114,11 +120,13 @@ module VismaEnterprise =
 
 module Integration =
 
-    let usersMissingDelegate delegateEmail =
-        [ for (id, email) in  VismaEnterprise.fakturaUsers() do
-            if not <| Exchange.hasDelegate (id, email) delegateEmail then 
+    let usersMissingDelegateFrom users delegateEmail =
+        [ for (id, email) in users do
+            if not <| Exchange.hasDelegate email delegateEmail then 
                 yield (id, email) ]
 
+    let usersMissingDelegate delegateEmail =
+        usersMissingDelegateFrom (VismaEnterprise.fakturaUsers()) delegateEmail
 
     let showUsersMissingDelegate delegateEmail = 
         for (id, email) in usersMissingDelegate delegateEmail do
@@ -126,17 +134,38 @@ module Integration =
 
     let private setDelegate id email delegateEmail =
         printfn "Setting delegate for %i:%s" id email
-        email |> Exchange.setDelegate delegateEmail |> ignore
+        email |> Exchange.setDelegate delegateEmail
 
-    let setDelegatesForAll delegateEmail =
-        for (id, email) in VismaEnterprise.fakturaUsers() do 
-            setDelegate id email delegateEmail
+    let setDelegatesFor users delegateEmail =
+        [ for (id, email) in users do 
+            yield setDelegate id email delegateEmail ]
             
+    let setDelegatesForEFakturaUsers delegateEmail =
+        setDelegatesFor (VismaEnterprise.fakturaUsers()) delegateEmail
 
     let setMissingDelegates delegateEmail = 
-        for (id, email) in usersMissingDelegate delegateEmail do
-            setDelegate id email delegateEmail
+        [ for (id, email) in usersMissingDelegate delegateEmail do
+            yield setDelegate id email delegateEmail ]
 
 
+    let checkIndividualUser usersDisplayName =
+        let user = 
+            VismaEnterprise.users () 
+            |> Seq.filter(fun u -> u.DisplayName = usersDisplayName) 
+            |> Seq.map( fun u -> (u.VismaId, u.Email)) 
+        let missing = usersMissingDelegateFrom (user) delegateEmail
+        missing
 
-Integration.setMissingDelegates delegateEmail
+    let updateAllActiveDirectoryUsers () =
+        let adUsers = 
+            ActiveDirectory.users () 
+            |> Seq.map (fun u -> u.Email) 
+            |> Seq.filter (fun u -> u |> exists) 
+        let wrappedUsers = adUsers |> Seq.map(fun email -> 0, email)
+
+        let runRes = setDelegatesFor wrappedUsers delegateEmail
+        runRes
+
+
+//Integration.showUsersMissingDelegate delegateEmail
+//Integration.setMissingDelegates delegateEmail
