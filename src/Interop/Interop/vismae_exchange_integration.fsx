@@ -127,4 +127,4 @@ module Integration =
 
 
 //Integration.usersMissingDelegates delegateEmail
-//Integration.setAllDelegates()
+Integration.setAllDelegates()
