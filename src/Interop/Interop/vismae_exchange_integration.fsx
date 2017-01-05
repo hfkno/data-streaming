@@ -114,17 +114,29 @@ module VismaEnterprise =
 
 module Integration =
 
-    let usersMissingDelegates delegateEmail =
-        for (id, email) in  VismaEnterprise.fakturaUsers() do
-            if not <| Exchange.hasDelegate (id, email) delegateEmail then
-                printfn "Missing delegate - user %i:%s lacks email delegation to %s" id email delegateEmail
+    let usersMissingDelegate delegateEmail =
+        [ for (id, email) in  VismaEnterprise.fakturaUsers() do
+            if not <| Exchange.hasDelegate (id, email) delegateEmail then 
+                yield (id, email) ]
 
-    let setAllDelegates () =
+
+    let showUsersMissingDelegate delegateEmail = 
+        for (id, email) in usersMissingDelegate delegateEmail do
+            printfn "Missing delegate - user %i:%s lacks email delegation to %s" id email delegateEmail                
+
+    let private setDelegate id email delegateEmail =
+        printfn "Setting delegate for %i:%s" id email
+        email |> Exchange.setDelegate delegateEmail |> ignore
+
+    let setDelegatesForAll delegateEmail =
         for (id, email) in VismaEnterprise.fakturaUsers() do 
-            printfn "Setting delegate for %i:%s" id email
-            Exchange.setDelegate delegateEmail email |> ignore
+            setDelegate id email delegateEmail
+            
+
+    let setMissingDelegates delegateEmail = 
+        for (id, email) in usersMissingDelegate delegateEmail do
+            setDelegate id email delegateEmail
 
 
 
-//Integration.usersMissingDelegates delegateEmail
-Integration.setAllDelegates()
+Integration.setMissingDelegates delegateEmail
