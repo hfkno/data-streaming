@@ -604,7 +604,7 @@ module Test =
 
 
 
-let doFullUpdate =
+let doFullUpdate () =
     let adUsers = ActiveDirectory.users() |> Seq.toList
     let vismaUsers = VismaEnterprise.users() |> Seq.toList
     Test.doUpdate (adUsers, vismaUsers)

@@ -22,6 +22,7 @@
 
 #r "../../packages/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
 #r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
+#load "ad_vismae_integration.fsx"
 open FSharp.Data
 open Newtonsoft.Json
 open Newtonsoft.Json.Linq
@@ -54,9 +55,16 @@ let splitJsonArray (input:Result<string,string>) =
 let splitIntArray (input:string) =
     input.Replace("[", "").Replace("]", "").Split(',') 
     |> Array.map (fun n -> System.Int32.Parse(n))
+
+type CapitalizedCamelCasePropertyNamesResolver() =
+    inherit Serialization.DefaultContractResolver ()
+    override x.ResolveDictionaryKey (s) = s
+
 let toJson o =
     JsonConvert.SerializeObject(o, 
-        new JsonSerializerSettings(ContractResolver = new Serialization.CamelCasePropertyNamesContractResolver())
+        //new JsonSerializerSettings(ContractResolver = new Serialization.CamelCasePropertyNamesContractResolver())
+        new JsonSerializerSettings(ContractResolver = new CapitalizedCamelCasePropertyNamesResolver())
+
     )
 let encode = toJson
 
@@ -312,15 +320,35 @@ r |> SchemaPersistence.writeSchemas "C:\\proj\\test"
 // TODO: Upgrade to a new schema with a breaking change...
 
 
-type User = 
-    {
-        Id : int
-        Name : string
-        Title : string
-        Email : string
-        Department : string
-    }
 
-let atest = { Id = 0; Name = "Amber Allad"; Title="Junior Janitor"; Email = "aa@hfk.no"; Department = "Sanitation"; }
+
+open Ad_vismae_integration.ActiveDirectory
+let adUserTest = 
+    { EmployeeId = "0" 
+      DisplayName = "Testing Messaging"
+      Account = "TESMESS"
+      Email = "testmess@example.no"
+      IsActive = true
+      WorkPhone = ""
+      MobilePhone = ""
+      FirstName = "Testing"
+      LastName = "" }
+
+adUserTest |> toJson
+
 let schemaId = r.latestSchemaId("ad_user-value")
-k.produceVersionedMessage("ad_user-value", schemaId, atest)
+k.produceVersionedMessage("ad_user-value", schemaId, adUserTest)
+
+let users = Ad_vismae_integration.ActiveDirectory.users()
+
+
+let results =
+    [ for u in users |> Seq.take 2 do
+            let y = { u with DisplayName = "testing"; LastName = "Engrish" }
+            yield (k.produceVersionedMessage("ad_user-value", schemaId, u)) ]
+
+
+for r in results do
+    printf "%A\r\n" r
+
+
