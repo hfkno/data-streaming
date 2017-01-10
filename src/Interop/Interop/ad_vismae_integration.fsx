@@ -565,7 +565,7 @@ module Test =
         //Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
         Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), b.Email, b.EmployeeId, c.Initials, c.DisplayName) |> Seq.toList 
         
-    let doUpdate (adUsers : ActiveDirectory.User list, veUsers : VismaEnterprise.User list) = 
+    let doUpdate (adUsers : ActiveDirectory.User seq, veUsers : VismaEnterprise.User seq) = 
 
         let badinitials = ["TELLER"; "SKYSS"; "OPUS"]
         let updateActions = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList |> Seq.where (fun (a, (b, c)) -> (not <| badinitials.Contains(c.Initials)) && exists c.Initials) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
@@ -603,10 +603,9 @@ module Test =
 
 
 
-let s = VismaEnterprise.users() |> Seq.toList
 
-s |> Seq.length
-
-Test.doUpdate (ActiveDirectory.users() |> Seq.toList, VismaEnterprise.users() |> Seq.toList)
-
+let doFullUpdate =
+    let adUsers = ActiveDirectory.users() |> Seq.toList
+    let vismaUsers = VismaEnterprise.users() |> Seq.toList
+    Test.doUpdate (adUsers, vismaUsers)
 
