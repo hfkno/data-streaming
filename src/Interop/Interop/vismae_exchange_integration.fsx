@@ -86,6 +86,16 @@ module Exchange =
             | _    -> printfn "%s" d.DelegateUser.UserId.DisplayName
 
 
+    let showDelegates2 (vismaId, userEmail) = 
+        printfn "showing user : %i - %s"vismaId userEmail
+        service.GetDelegates(impersonatedMailbox userEmail, true).DelegateUserResponses
+        
+
+    let showDelegates3 (vismaId, userEmail) = 
+        printfn "showing user : %i - %s"vismaId userEmail
+        service.GetDelegates(impersonatedMailbox userEmail, true).DelegateUserResponses
+
+
     let hasDelegate (userEmail) (delegateEmail:string) =
         (getDelegatesFor userEmail)
             .Any(fun d -> 
@@ -109,7 +119,6 @@ module Exchange =
         let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
         
         service.AddDelegates(impersonatedMailbox forUser, scope, new DelegateUser(delegateEmail))
-                             
 
 
 
@@ -194,6 +203,13 @@ module Integration =
 Integration.showActiveDirectoryUsersMissingDelegate delegateEmail
 //Integration.setMissingDelegates delegateEmail
 
-let testMail = "Torill.Ringheim@hfk.no"
-Exchange.setDelegate2 delegateEmail testMail
-Exchange.hasDelegate testMail delegateEmail
+
+
+let checkUser userMail =
+
+    let testMail = userMail
+    let yy = Exchange.showDelegates3 (0, testMail) |> Seq.toList
+    yy |> Seq.map (printf "%O") |> ignore
+
+    let ff = Exchange.setDelegate2 delegateEmail testMail
+    Exchange.hasDelegate testMail delegateEmail

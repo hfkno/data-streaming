@@ -607,6 +607,6 @@ let s = VismaEnterprise.users() |> Seq.toList
 
 s |> Seq.length
 
-//Test.doUpdate (ActiveDirectory.users() |> Seq.toList, VismaEnterprise.users() |> Seq.toList)
+Test.doUpdate (ActiveDirectory.users() |> Seq.toList, VismaEnterprise.users() |> Seq.toList)
 
 
