@@ -70,7 +70,13 @@ module Exchange =
         service.ImpersonatedUserId <- new ImpersonatedUserId(ConnectingIdType.SmtpAddress, userEmail)
         new Mailbox(userEmail)
 
-    let getDelegatesFor userEmail = service.GetDelegates(impersonatedMailbox userEmail, true).DelegateUserResponses
+    let getDelegatesFor userEmail = 
+        try
+            service.GetDelegates(impersonatedMailbox userEmail, true).DelegateUserResponses
+        with
+            | :? Microsoft.Exchange.WebServices.Data.ServiceResponseException as e when e.Message.Contains("no mailbox associated") ->
+                new Collections.ObjectModel.Collection<DelegateUserResponse>()
+    
 
     let showDelegates (vismaId, userEmail) = 
         printfn "showing user : %i - %s"vismaId userEmail
@@ -90,12 +96,20 @@ module Exchange =
     let setDelegate (delegateEmail : string) (forUser : string) =
         let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
         try
-            service.AddDelegates(impersonatedMailbox forUser, scope, new DelegateUser(delegateEmail)) |> ignore
-            Success (sprintf "'%s' got delegate '%s'" forUser delegateEmail)
+            let ret = service.AddDelegates(impersonatedMailbox forUser, scope, new DelegateUser(delegateEmail)) |> Seq.head
+            match ret.Result with
+            | ServiceResult.Success -> Success (sprintf "'%s' got delegate '%s'" forUser delegateEmail)
+            | _ -> Error (sprintf "'%s' did not get delegate '%s': '%s'" forUser delegateEmail ret.ErrorMessage)            
         with
             | :? Microsoft.Exchange.WebServices.Data.ServiceResponseException as e when e.Message.Contains("no mailbox associated") ->
                 Error (sprintf "No mailbox associated with '%s'" forUser)
-                               
+
+
+    let setDelegate2 (delegateEmail : string) (forUser : string) =
+        let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
+        
+        service.AddDelegates(impersonatedMailbox forUser, scope, new DelegateUser(delegateEmail))
+                             
 
 
 
@@ -120,17 +134,31 @@ module VismaEnterprise =
 
 module Integration =
 
+    let private wrapAdUsers adUsers =
+        adUsers |> Seq.map(fun email -> 0, email)
+
+
+    let adUsers () = 
+        ActiveDirectory.users () 
+            |> Seq.map (fun u -> u.Email) 
+            |> Seq.filter (fun u -> u |> exists) 
+            |> Seq.map(fun email -> 0, email)
+
     let usersMissingDelegateFrom users delegateEmail =
         [ for (id, email) in users do
+            printfn "Checking delegates for %i %s" id email
             if not <| Exchange.hasDelegate email delegateEmail then 
                 yield (id, email) ]
-
-    let usersMissingDelegate delegateEmail =
-        usersMissingDelegateFrom (VismaEnterprise.fakturaUsers()) delegateEmail
-
-    let showUsersMissingDelegate delegateEmail = 
-        for (id, email) in usersMissingDelegate delegateEmail do
+                
+    let showUsersMissingDelegate users delegateEmail = 
+        for (id, email) in usersMissingDelegateFrom users delegateEmail do
             printfn "Missing delegate - user %i:%s lacks email delegation to %s" id email delegateEmail                
+
+    let showEFakturaUsersMissingDelegate delegateEmail = 
+        showUsersMissingDelegate (VismaEnterprise.fakturaUsers()) delegateEmail
+
+    let showActiveDirectoryUsersMissingDelegate delegateEmail = 
+        showUsersMissingDelegate (adUsers()) delegateEmail
 
     let private setDelegate id email delegateEmail =
         printfn "Setting delegate for %i:%s" id email
@@ -143,8 +171,8 @@ module Integration =
     let setDelegatesForEFakturaUsers delegateEmail =
         setDelegatesFor (VismaEnterprise.fakturaUsers()) delegateEmail
 
-    let setMissingDelegates delegateEmail = 
-        [ for (id, email) in usersMissingDelegate delegateEmail do
+    let setMissingEFakturaDelegates delegateEmail = 
+        [ for (id, email) in usersMissingDelegateFrom (VismaEnterprise.fakturaUsers()) delegateEmail do
             yield setDelegate id email delegateEmail ]
 
 
@@ -157,15 +185,15 @@ module Integration =
         missing
 
     let updateAllActiveDirectoryUsers () =
-        let adUsers = 
-            ActiveDirectory.users () 
-            |> Seq.map (fun u -> u.Email) 
-            |> Seq.filter (fun u -> u |> exists) 
-        let wrappedUsers = adUsers |> Seq.map(fun email -> 0, email)
-
-        let runRes = setDelegatesFor wrappedUsers delegateEmail
+        let runRes = setDelegatesFor (adUsers()) delegateEmail
         runRes
 
 
-//Integration.showUsersMissingDelegate delegateEmail
+
+
+Integration.showActiveDirectoryUsersMissingDelegate delegateEmail
 //Integration.setMissingDelegates delegateEmail
+
+let testMail = "Torill.Ringheim@hfk.no"
+Exchange.setDelegate2 delegateEmail testMail
+Exchange.hasDelegate testMail delegateEmail
