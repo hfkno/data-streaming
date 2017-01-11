@@ -42,8 +42,12 @@ open System.Linq
 type Result<'TSuccess,'TError> =
      | Success of 'TSuccess
      | Error of 'TError
+
+
 let (|Exists|_|) (str:string) = if System.String.IsNullOrEmpty str then None else Some str
+
 let cleanJson (json:string) = json.Replace("\\\"", "\"")
+
 let splitJsonArray (input:Result<string,string>) =
     match input with
     | Success str ->
@@ -52,21 +56,33 @@ let splitJsonArray (input:Result<string,string>) =
             str.Replace("[", "").Replace("]", "").Replace("\"", "").Split(',') |> Success
         | _ -> [||] |> Success
     | Error msg -> Error msg
+
 let splitIntArray (input:string) =
     input.Replace("[", "").Replace("]", "").Split(',') 
     |> Array.map (fun n -> System.Int32.Parse(n))
 
-type CapitalizedCamelCasePropertyNamesResolver() =
+let stringFold (proc:char -> string) (s:string)=
+    String.Concat(s.Select(proc).ToArray())
+
+let foldProc (c:char) =
+    if (int c) >= 128 then
+        String.Format(@"\u{0:x4}", int c)
+    else
+        c.ToString()
+
+let escapeToAscii (s:string) = s |> stringFold foldProc
+
+type ProperCaseCamelCasePropertyNamesResolver() =
     inherit Serialization.DefaultContractResolver ()
-    override x.ResolveDictionaryKey (s) = s
+    override x.ResolveDictionaryKey s = s
 
 let toJson o =
     JsonConvert.SerializeObject(o, 
-        //new JsonSerializerSettings(ContractResolver = new Serialization.CamelCasePropertyNamesContractResolver())
-        new JsonSerializerSettings(ContractResolver = new CapitalizedCamelCasePropertyNamesResolver())
+        new JsonSerializerSettings(ContractResolver = new ProperCaseCamelCasePropertyNamesResolver()))
 
-    )
 let encode = toJson
+
+
 
 
 type ConfluenceAdapter(rootUrl) =
@@ -88,6 +104,8 @@ type ConfluenceAdapter(rootUrl) =
 
 
 (* Message topic creation *)
+
+/// Kafka proxy proxy
 type Kafka(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
 
@@ -101,7 +119,7 @@ type Kafka(rootUrl) =
 
     member x.schemaPolicy() = "topics/_schemas" |> x.getUrl
 
-    member x.produceMessage(topic, msg) =
+    member x.publishMessage(topic, msg) =
         x.request
           ( x.url "topics/" + topic,
             headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ],
@@ -125,55 +143,16 @@ type Kafka(rootUrl) =
            httpMethod = "GET",
            headers = [ "Accept", "application/vnd.kafka.avro.v1+json" ])
 
-    member x.produceVersionedMessage(topic, schemaId, (message:'a)) =
-        let messageJson = message |> toJson
-        let versionedMessage = sprintf """{"value_schema_id": "%i", "records": [{"value": %s}]}""" schemaId messageJson
-        printf "publishing: %s\r\n" versionedMessage
-        x.produceMessage(topic, versionedMessage)
-
+    member x.produceVersionedMessage schemaId (message:'a) =
+        let messageJson = message |> toJson |> escapeToAscii
         
-let k = new Kafka("http://localhost:8082")
-k.listTopics()
-k.schemaPolicy()
-k.topics()
-k.topicMetadata("basictest2")
-k.topicPartitionMetadata("basictest2")
+        sprintf """{"value_schema_id": "%i", "records": [{"value": %s}]}""" schemaId messageJson
 
-// produding a message with Avro metadata embedded
-let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ]}"""
-let records = """{"value": {"name": "testUser", "nameo": "erro"}}"""
-let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
-let valueSchemaId = 1
-let dataId = sprintf """{"value_schema_id": "%i", "records": [%s]}""" valueSchemaId records
-let topic = "testing_8"
-
-// Post a message with rolling data
-for i in 21 .. 29 do
-    let postData = data.Replace("testUser", sprintf "testUser%i" i)
-    match k.produceMessage(topic, postData) with
-    | Success msg -> printf "%s" msg |> ignore
-    | Error msg -> failwith msg
-
-// Post a message with rolling data - known schema
-for i in 91 .. 99 do
-    let postData = dataId.Replace("testUser", sprintf "testUser%i" i)
-    k.produceMessage(topic, postData) |> ignore
-
-// Init consumer
-let consumerName = "ze_test_consumer"
-k.createConsumer(consumerName)
-
-// Read updated rolling data
-match k.consume(consumerName, "ad_user") with
-| Success str -> printf "%s" str |> ignore
-| Error msg -> printf "%s" msg |> ignore
-
-// Cleanup
-k.deleteConsumer(consumerName)
-
-
-
-
+    member x.publishVersionedMessage(topic, schemaId, (message:'a)) =
+        let versionedMessage = x.produceVersionedMessage schemaId message
+        printf "publishing: %s\r\n" versionedMessage
+        x.publishMessage(topic, versionedMessage )
+      
 
 
 (* Schema manipulation  *)
@@ -300,6 +279,45 @@ module SchemaPersistence =
 
 
 
+            
+let k = new Kafka("http://localhost:8082")
+k.listTopics()
+k.schemaPolicy()
+k.topics()
+
+// produding a message with Avro metadata embedded
+let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ]}"""
+let records = """{"value": {"name": "testUser", "nameo": "erro"}}"""
+let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
+let valueSchemaId = 1
+let dataId = sprintf """{"value_schema_id": "%i", "records": [%s]}""" valueSchemaId records
+let topic = "testing_8"
+
+// Post a message with rolling data
+for i in 21 .. 29 do
+    let postData = data.Replace("testUser", sprintf "testUser%i" i)
+    match k.publishMessage(topic, postData) with
+    | Success msg -> printf "%s" msg |> ignore
+    | Error msg -> failwith msg
+
+// Post a message with rolling data - known schema
+for i in 91 .. 99 do
+    let postData = dataId.Replace("testUser", sprintf "testUser%i" i)
+    k.publishMessage(topic, postData) |> ignore
+
+// Init consumer
+let consumerName = "ze_test_consumer"
+k.createConsumer(consumerName)
+
+// Read updated rolling data
+match k.consume(consumerName, "ad_user") with
+| Success str -> printf "%s" str |> ignore
+| Error msg -> printf "%s" msg |> ignore
+
+// Cleanup
+k.deleteConsumer(consumerName)
+
+
 let r = new SchemaRegistry("http://localhost:8081")
 
 r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
@@ -321,11 +339,10 @@ r |> SchemaPersistence.writeSchemas "C:\\proj\\test"
 
 
 
-
 open Ad_vismae_integration.ActiveDirectory
 let adUserTest = 
     { EmployeeId = "0" 
-      DisplayName = "Testing Messaging"
+      DisplayName = "Tøfusting Messæging"
       Account = "TESMESS"
       Email = "testmess@example.no"
       IsActive = true
@@ -334,21 +351,37 @@ let adUserTest =
       FirstName = "Testing"
       LastName = "" }
 
-adUserTest |> toJson
 
 let schemaId = r.latestSchemaId("ad_user-value")
-k.produceVersionedMessage("ad_user-value", schemaId, adUserTest)
+k.produceVersionedMessage 5 adUserTest
+k.publishVersionedMessage("ad_user-value", schemaId, adUserTest)
 
-let users = Ad_vismae_integration.ActiveDirectory.users()
-
+let users = Ad_vismae_integration.ActiveDirectory.users() |> Seq.toList
 
 let results =
-    [ for u in users |> Seq.take 2 do
-            let y = { u with DisplayName = "testing"; LastName = "Engrish" }
-            yield (k.produceVersionedMessage("ad_user-value", schemaId, u)) ]
-
+    [ for u in users do yield k.publishVersionedMessage("ad_user-value", schemaId,u) ]
 
 for r in results do
     printf "%A\r\n" r
 
 
+
+#time
+// Init consumer
+let adConsumerName = "ad_consumer"
+k.createConsumer(adConsumerName)
+// Read updated rolling data
+match k.consume(adConsumerName, "ad_user-value") with
+| Success str -> printf "%s" str |> ignore
+| Error msg -> printf "%s" msg |> ignore
+// Cleanup
+k.deleteConsumer(adConsumerName)
+#time  // Real: 00:00:02.187, CPU: 00:00:00.031, GC gen0: 2, gen1: 1, gen2: 0
+
+
+
+#time 
+
+Ad_vismae_integration.ActiveDirectory.users() |> Seq.toList
+
+#time  // Real: 00:01:19.456, CPU: 00:00:10.718, GC gen0: 21, gen1: 3, gen2: 0
