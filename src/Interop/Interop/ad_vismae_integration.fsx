@@ -61,6 +61,8 @@ open FSharp.Data.HttpRequestHeaders
 
 // TODO: document where we are "loading" data and where we are "writing" data in the documentation (ie `toUser` in this file)
 
+// TODO: Enable bulk insert of records through POST  (https://www.confluent.io/blog/a-comprehensive-open-source-rest-proxy-for-kafka/)
+
 
 
 
