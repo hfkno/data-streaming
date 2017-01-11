@@ -105,9 +105,17 @@ type ConfluenceAdapter(rootUrl) =
 
 (* Message topic creation *)
 
+
+type ConsumerInstance =
+    { Id : string
+      BaseUri : string }
+
 /// Kafka proxy proxy
 type Kafka(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
+
+    let rand = System.Random()
+
 
     member x.listTopics()  = "topics" |> x.getUrl
 
@@ -126,15 +134,15 @@ type Kafka(rootUrl) =
             body = TextRequest msg )
 
     // TODO: Sanitize consumer 'name' input for consumer URL creation
-    member x.createConsumer(consumerName:string) =
+    member x.createConsumer(consumerGroup:string) =
          x.request
-          ( x.url (sprintf "consumers/my_avro_consumer"),
+          ( x.url (sprintf "consumers/%s" consumerGroup),
             headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ],
-            body = TextRequest (sprintf """{"name": "%s", "format": "avro", "auto.offset.reset": "smallest"}""" consumerName))
+            body = TextRequest (""""format": "avro", "auto.offset.reset": "smallest"}""" ))
 
-    member x.deleteConsumer(consumerName:string) =
+    member x.deleteConsumer(consumerGroup:string, consumerName:string) =
          x.request
-          ( x.url (sprintf "consumers/my_avro_consumer/instances/%s" consumerName),
+          ( x.url (sprintf "consumers/%s/instances/%s" consumerGroup consumerName),
             httpMethod = "DELETE")
 
     member x.consume(consumerName:string, topic:string) =
@@ -142,6 +150,17 @@ type Kafka(rootUrl) =
          ( x.url (sprintf "consumers/my_avro_consumer/instances/%s/topics/%s" consumerName topic),
            httpMethod = "GET",
            headers = [ "Accept", "application/vnd.kafka.avro.v1+json" ])
+
+    member x.consumeAll(topic:string) =
+        let consumerName = sprintf "consumeall_%05i_" (rand.Next(1, 99999))
+        match x.createConsumer(consumerName) with
+        | Success s -> 
+            printfn "%s" s
+            let consumedData = x.consume(consumerName, topic)
+            match x.deleteConsumer(consumerName) with
+            | Success msg -> consumedData
+            | Error msg -> failwith msg
+        | Error msg -> failwith msg
 
     member x.produceVersionedMessage schemaId (message:'a) =
         let messageJson = message |> toJson |> escapeToAscii
@@ -151,7 +170,7 @@ type Kafka(rootUrl) =
     member x.publishVersionedMessage(topic, schemaId, (message:'a)) =
         let versionedMessage = x.produceVersionedMessage schemaId message
         printf "publishing: %s\r\n" versionedMessage
-        x.publishMessage(topic, versionedMessage )
+        x.publishMessage(topic, versionedMessage)
       
 
 
@@ -385,3 +404,11 @@ k.deleteConsumer(adConsumerName)
 Ad_vismae_integration.ActiveDirectory.users() |> Seq.toList
 
 #time  // Real: 00:01:19.456, CPU: 00:00:10.718, GC gen0: 21, gen1: 3, gen2: 0
+
+
+
+#time 
+
+let caRet = k.consumeAll("ad_user-value")
+
+#time // Real: 00:00:01.182, CPU: 00:00:00.031, GC gen0: 1, gen1: 0, gen2: 0
