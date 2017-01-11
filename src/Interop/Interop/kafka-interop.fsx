@@ -43,6 +43,9 @@ type Result<'TSuccess,'TError> =
      | Success of 'TSuccess
      | Error of 'TError
 
+// Success value
+let inline sval (res:Result<'a,'b>) = match res with | Success a -> a | Error msg -> failwith msg
+
 
 let (|Exists|_|) (str:string) = if System.String.IsNullOrEmpty str then None else Some str
 
@@ -85,6 +88,17 @@ let encode = toJson
 
 
 
+type ConsumerInstance =
+    { Group : string
+      Name : string
+      BaseUri : string }
+    with
+        static member Default = 
+            { Group = "UnknownGroup"
+              Name = "UnknownConsumer"
+              BaseUri = "/" }
+
+
 type ConfluenceAdapter(rootUrl) =
 
     member x.url ending = rootUrl + "/" + ending
@@ -101,21 +115,21 @@ type ConfluenceAdapter(rootUrl) =
 
     member x.query(path)  = x.request (x.url path)
 
+    member x.toConsumerInstance (consumerGroup:string) (createResult:Result<string,string>):Result<ConsumerInstance,string> =
+        match createResult with
+        | Success json -> 
+            let jo = JObject.Parse(json)
+            Success { Name = string jo.["instance_id"]; BaseUri = string jo.["base_uri"]; Group = consumerGroup }
+        | Error msg -> Error msg
 
 
 (* Message topic creation *)
-
-
-type ConsumerInstance =
-    { Id : string
-      BaseUri : string }
 
 /// Kafka proxy proxy
 type Kafka(rootUrl) =
     inherit ConfluenceAdapter(rootUrl)
 
     let rand = System.Random()
-
 
     member x.listTopics()  = "topics" |> x.getUrl
 
@@ -134,16 +148,20 @@ type Kafka(rootUrl) =
             body = TextRequest msg )
 
     // TODO: Sanitize consumer 'name' input for consumer URL creation
-    member x.createConsumer(consumerGroup:string) =
+    member x.createConsumer (consumerGroup:string) =
          x.request
           ( x.url (sprintf "consumers/%s" consumerGroup),
             headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ],
             body = TextRequest (""""format": "avro", "auto.offset.reset": "smallest"}""" ))
+        |> x.toConsumerInstance consumerGroup
 
     member x.deleteConsumer(consumerGroup:string, consumerName:string) =
          x.request
           ( x.url (sprintf "consumers/%s/instances/%s" consumerGroup consumerName),
             httpMethod = "DELETE")
+
+    member x.deleteConsumerInstance(consumer:ConsumerInstance) =
+        x.deleteConsumer(consumer.Group, consumer.Name)
 
     member x.consume(consumerName:string, topic:string) =
         x.request
@@ -153,14 +171,13 @@ type Kafka(rootUrl) =
 
     member x.consumeAll(topic:string) =
         let consumerName = sprintf "consumeall_%05i_" (rand.Next(1, 99999))
-        match x.createConsumer(consumerName) with
-        | Success s -> 
-            printfn "%s" s
+        x.createConsumer(consumerName) 
+        |> sval
+        |> (fun consumer ->
+            printfn "%O"consumer
             let consumedData = x.consume(consumerName, topic)
-            match x.deleteConsumer(consumerName) with
-            | Success msg -> consumedData
-            | Error msg -> failwith msg
-        | Error msg -> failwith msg
+            x.deleteConsumer(consumer.Group, consumer.Name) |> sval |> ignore
+            consumedData)
 
     member x.produceVersionedMessage schemaId (message:'a) =
         let messageJson = message |> toJson |> escapeToAscii
@@ -315,9 +332,7 @@ let topic = "testing_8"
 // Post a message with rolling data
 for i in 21 .. 29 do
     let postData = data.Replace("testUser", sprintf "testUser%i" i)
-    match k.publishMessage(topic, postData) with
-    | Success msg -> printf "%s" msg |> ignore
-    | Error msg -> failwith msg
+    k.publishMessage(topic, postData) |> sval |> printf "%s" 
 
 // Post a message with rolling data - known schema
 for i in 91 .. 99 do
@@ -325,16 +340,16 @@ for i in 91 .. 99 do
     k.publishMessage(topic, postData) |> ignore
 
 // Init consumer
-let consumerName = "ze_test_consumer"
-k.createConsumer(consumerName)
+let consumerGroup = "ze_test_consumer"
+let consumer =  k.createConsumer(consumerGroup) |> sval 
 
 // Read updated rolling data
-match k.consume(consumerName, "ad_user") with
+match k.consume(consumerGroup, "ad_user") with
 | Success str -> printf "%s" str |> ignore
 | Error msg -> printf "%s" msg |> ignore
 
 // Cleanup
-k.deleteConsumer(consumerName)
+k.deleteConsumer(consumer.Group, consumer.Name)
 
 
 let r = new SchemaRegistry("http://localhost:8081")
@@ -356,6 +371,12 @@ r |> SchemaPersistence.writeSchemas "C:\\proj\\test"
 
 // TODO: Upgrade to a new schema with a breaking change...
 
+let json = """{"instance_id":"ze_test_consumer","base_uri":"http://localhost:8082/consumers/my_avro_consumer/instances/ze_test_consumer"}"""
+
+let jObj = JObject.Parse(json)
+string jObj.["instance_id"]
+jObj.Properties() |> Seq.toList
+string (jObj.GetValue("instance_id"))
 
 
 open Ad_vismae_integration.ActiveDirectory
@@ -387,14 +408,13 @@ for r in results do
 
 #time
 // Init consumer
-let adConsumerName = "ad_consumer"
-k.createConsumer(adConsumerName)
+let adConsumer = k.createConsumer("ad_consumer") |> sval
 // Read updated rolling data
-match k.consume(adConsumerName, "ad_user-value") with
+match k.consume(adConsumer.Name, "ad_user-value") with
 | Success str -> printf "%s" str |> ignore
 | Error msg -> printf "%s" msg |> ignore
 // Cleanup
-k.deleteConsumer(adConsumerName)
+k.deleteConsumerInstance(adConsumer)
 #time  // Real: 00:00:02.187, CPU: 00:00:00.031, GC gen0: 2, gen1: 1, gen2: 0
 
 
