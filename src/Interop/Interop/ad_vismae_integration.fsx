@@ -611,3 +611,4 @@ let doFullUpdate () =
     let vismaUsers = VismaEnterprise.users() |> Seq.toList
     Test.doUpdate (adUsers, vismaUsers)
 
+doFullUpdate()

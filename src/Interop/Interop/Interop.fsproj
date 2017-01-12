@@ -61,6 +61,8 @@
     <Content Include="config.config" />
     <Content Include="sensitive.config" />
     <None Include="scratch.fsx" />
+    <None Include="hip.fsx" />
+    <None Include="fsharp_avro_generation.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Akka.DI.Core">

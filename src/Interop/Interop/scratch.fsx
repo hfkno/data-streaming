@@ -16,4 +16,8 @@ let escapeToAscii (s:string) = s |> stringFold foldProc
 
 escapeToAscii "æøæåååå"
 
+
+
+
+
     
