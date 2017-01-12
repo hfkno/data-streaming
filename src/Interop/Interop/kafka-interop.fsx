@@ -149,10 +149,15 @@ type Kafka(rootUrl) =
 
     // TODO: Sanitize consumer 'name' input for consumer URL creation
     member x.createConsumer (consumerGroup:string) =
-         x.request
+        x.request
           ( x.url (sprintf "consumers/%s" consumerGroup),
-            headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ],
-            body = TextRequest (""""format": "avro", "auto.offset.reset": "smallest"}""" ))
+             headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ],
+             body = TextRequest (sprintf """{"format": "avro", "auto.offset.reset": "smallest"}""" ))
+//
+//         x.request
+//          ( x.url (sprintf "consumers/%s" consumerGroup),
+//            headers = [ "Content-Type", "application/vnd.kafka.avro.v1+json" ],
+//            body = TextRequest (""""{format": "avro", "auto.offset.reset": "smallest"}""" ))
         |> x.toConsumerInstance consumerGroup
 
     member x.deleteConsumer(consumerGroup:string, consumerName:string) =
@@ -315,8 +320,12 @@ module SchemaPersistence =
 
 
 
+
+// TODO: need to check all consumer stuff..
+
             
 let k = new Kafka("http://localhost:8082")
+k.createConsumer("herro")
 k.listTopics()
 k.schemaPolicy()
 k.topics()
@@ -404,6 +413,8 @@ let results =
 for r in results do
     printf "%A\r\n" r
 
+
+k.consumeAll("ad_user-value")
 
 
 #time
