@@ -21,4 +21,4 @@ nuget Destructurama.FSharp
 nuget Akka.NET.FSharp.API.Extensions
 nuget Microsoft.Exchange.WebServices
 nuget Microsoft.Hadoop.Avro
-nuget Json.NET Schema
+nuget Newtonsoft.Json.Schema

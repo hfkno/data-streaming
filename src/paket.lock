@@ -163,6 +163,24 @@ NUGET
       System.Threading.Tasks (>= 4.0.11) - framework: >= netstandard10
       System.Xml.ReaderWriter (>= 4.0.11) - framework: >= netstandard10
       System.Xml.XDocument (>= 4.0.11) - framework: >= netstandard10
+    Newtonsoft.Json.Schema (2.0.8)
+      Microsoft.CSharp (>= 4.0.1) - framework: >= netstandard13
+      Newtonsoft.Json (>= 9.0.1) - framework: net35, net40, >= net45, >= netstandard13, portable45-net45+win8+wp8+wpa81
+      System.Collections (>= 4.0.11) - framework: >= netstandard13
+      System.Diagnostics.Debug (>= 4.0.11) - framework: >= netstandard13
+      System.Diagnostics.Tools (>= 4.0.1) - framework: >= netstandard13
+      System.Globalization (>= 4.0.11) - framework: >= netstandard13
+      System.IO (>= 4.1) - framework: >= netstandard13
+      System.IO.FileSystem (>= 4.0.1) - framework: >= netstandard13
+      System.Linq (>= 4.1) - framework: >= netstandard13
+      System.Net.Primitives (>= 4.0.11) - framework: >= netstandard13
+      System.Net.Requests (>= 4.0.11) - framework: >= netstandard13
+      System.Resources.ResourceManager (>= 4.0.1) - framework: >= netstandard13
+      System.Runtime (>= 4.1) - framework: >= netstandard13
+      System.Runtime.Numerics (>= 4.0.1) - framework: >= netstandard13
+      System.Security.Cryptography.Algorithms (>= 4.2) - framework: >= netstandard13
+      System.Text.Encoding (>= 4.0.11) - framework: >= netstandard13
+      System.Text.RegularExpressions (>= 4.1) - framework: >= netstandard13
     NUnit (3.6)
       NETStandard.Library (>= 1.6) - framework: >= net463, >= netstandard16
       System.Runtime.Loader (>= 4.0) - framework: >= net463, >= netstandard16
@@ -404,6 +422,20 @@ NUGET
       Microsoft.NETCore.Targets (>= 1.1) - framework: dnxcore50, netstandard10, netstandard11, >= netstandard13
       System.Runtime (>= 4.3) - framework: dnxcore50, netstandard10, netstandard11, >= netstandard13
       System.Runtime.Handles (>= 4.3) - framework: dnxcore50, >= netstandard13
+    System.Net.Requests (4.3) - framework: >= netstandard13
+      Microsoft.NETCore.Platforms (>= 1.1) - framework: >= netstandard13
+      System.Collections (>= 4.3) - framework: dnxcore50, >= netstandard13
+      System.Diagnostics.Debug (>= 4.3) - framework: dnxcore50, >= netstandard13
+      System.Diagnostics.Tracing (>= 4.3) - framework: dnxcore50, >= netstandard13
+      System.Globalization (>= 4.3) - framework: dnxcore50, >= netstandard13
+      System.IO (>= 4.3) - framework: dnxcore50, netstandard10, netstandard11, >= netstandard13
+      System.Net.Http (>= 4.3) - framework: dnxcore50, >= netstandard13
+      System.Net.Primitives (>= 4.3) - framework: dnxcore50, netstandard10, netstandard11, >= netstandard13
+      System.Net.WebHeaderCollection (>= 4.3) - framework: dnxcore50, >= netstandard13
+      System.Resources.ResourceManager (>= 4.3) - framework: dnxcore50, >= netstandard13
+      System.Runtime (>= 4.3) - framework: dnxcore50, netstandard10, netstandard11, >= netstandard13
+      System.Threading (>= 4.3) - framework: dnxcore50, >= netstandard13
+      System.Threading.Tasks (>= 4.3) - framework: dnxcore50, netstandard11, >= netstandard13
     System.Net.Sockets (4.3) - framework: >= net463, >= netstandard13
       Microsoft.NETCore.Platforms (>= 1.1) - framework: >= netstandard13
       Microsoft.NETCore.Targets (>= 1.1) - framework: >= netstandard13
@@ -411,6 +443,11 @@ NUGET
       System.Net.Primitives (>= 4.3) - framework: >= netstandard13
       System.Runtime (>= 4.3) - framework: >= netstandard13
       System.Threading.Tasks (>= 4.3) - framework: >= netstandard13
+    System.Net.WebHeaderCollection (4.3) - framework: >= netstandard13
+      System.Collections (>= 4.3) - framework: >= netstandard13
+      System.Resources.ResourceManager (>= 4.3) - framework: >= netstandard13
+      System.Runtime (>= 4.3) - framework: >= netstandard13
+      System.Runtime.Extensions (>= 4.3) - framework: >= netstandard13
     System.ObjectModel (4.3) - framework: >= net463, >= netstandard16
       System.Collections (>= 4.3) - framework: dnxcore50, >= netstandard13
       System.Diagnostics.Debug (>= 4.3) - framework: dnxcore50, >= netstandard13
