@@ -1,4 +1,5 @@
 ﻿
+
 #I "../../packages/"
 #r "Microsoft.Hadoop.Avro/lib/net45/Microsoft.Hadoop.Avro.dll"
 #r "System.Runtime.Serialization.dll"
@@ -6,6 +7,7 @@
 #r "Newtonsoft.Json.Schema/lib/net45/Newtonsoft.Json.Schema.dll"
 #load "FSharp.Formatting/FSharp.Formatting.fsx"
 open FSharp.Literate
+open System
 open System.IO
 open System.Runtime.Serialization;
 open System.Data
@@ -17,8 +19,6 @@ open Newtonsoft.Json.Linq
 open Newtonsoft.Json.Schema
 open Newtonsoft.Json.Schema.Generation
 open Microsoft.FSharp.Reflection
-
-
 
 type Address = { Location: string; Code: int }
 
@@ -36,6 +36,39 @@ type PersonSimple =
 
 // reflect a record
 // spit out a C# POCO
+
+let nameSpace (t:Type) = if t.Namespace = null then "hfk" else t.Namespace
+let toValType (name:string) = 
+    match name with
+    | "String" ->"string"
+    | "Int32" -> "int"
+    | _ -> failwith (sprintf "Unknown type '%s'" name)
+
+
+
+let myObj = { Name = "yo"; Age = 123 }
+
+
+let genClass (t:Type) : string =
+
+    let classTemplate : Printf.StringFormat<string -> string -> string -> string> =
+        """
+        public class %s.%s
+        {
+    %s
+        }
+        """
+
+    let ns = (typeof<PersonSimple>) |> nameSpace
+
+    let fields (t:Type) : string = 
+        FSharpType.GetRecordFields t
+        |> Seq.map(fun p -> sprintf "\t\t%s %s {get; set;}\r\n" (p.PropertyType.Name |> toValType) p.Name)
+        |> String.Concat
+
+
+    sprintf classTemplate ns (typeof<PersonSimple>).Name ((fields typeof<PersonSimple>).ToString())
+
 
 
 
