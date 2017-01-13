@@ -3,17 +3,20 @@
 #r "Microsoft.Hadoop.Avro/lib/net45/Microsoft.Hadoop.Avro.dll"
 #r "System.Runtime.Serialization.dll"
 #r "Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
+#r "Newtonsoft.Json.Schema/lib/net45/Newtonsoft.Json.Schema.dll"
 #load "FSharp.Formatting/FSharp.Formatting.fsx"
 open FSharp.Literate
 open System.IO
-
-
 open System.Runtime.Serialization;
 open System.Data
+open System.Collections.Generic
 open Microsoft.Hadoop.Avro
 open Microsoft.Hadoop.Avro.Container
 open Newtonsoft.Json
 open Newtonsoft.Json.Linq
+open Newtonsoft.Json.Schema
+open Newtonsoft.Json.Schema.Generation
+open Microsoft.FSharp.Reflection
 
 
 
@@ -23,6 +26,38 @@ type Person =
     { Name : string
       Age : int
       Address : Address }
+
+
+type PersonSimple = 
+    { Name : string
+      Age : int }
+
+
+
+// reflect a record
+// spit out a C# POCO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 [<DataContract>]
 type PersonC() =
@@ -49,9 +84,33 @@ let json = JsonConvert.SerializeObject({ Name = "OI"; Age = 123; Address = { Loc
 
 let jo = JObject.Parse(json)
 
+
 for p in jo.Properties() do
     printfn "%s" p.Name
+    printfn "%s" (p.Type.ToString())
     printfn "%A"  (p.Value.ToString())
+    printfn "%O" (p.Type.GetType())
+
+
+
+
+
+let jgen = new JSchemaGenerator()
+let sch = jgen.Generate(typeof<PersonC>)
+let tsc = jgen.Generate(typeof<PersonSimple>)
+let ssc = jgen.Generate(typeof<Person>)
+
+
+let rec listProps indent (props:IDictionary<string, JSchema>) =
+    for p in props do
+        printfn "%O"p.Key
+        printfn "%O"p.Value
+        listProps (indent + 1) p.Value.Properties
+
+
+listProps 0 (ssc.Properties)
+
+
 
 
 
