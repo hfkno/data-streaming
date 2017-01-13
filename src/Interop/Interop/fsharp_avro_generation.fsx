@@ -53,22 +53,25 @@ let genClass (t:Type) : string =
 
     let classTemplate : Printf.StringFormat<string -> string -> string -> string> =
         """
-        public class %s.%s
+    namespace %s {
+        public class %s
         {
-    %s
+%s
         }
+    }
         """
 
-    let ns = (typeof<PersonSimple>) |> nameSpace
+    let ns = t |> nameSpace
 
-    let fields (t:Type) : string = 
+    let fields = 
         FSharpType.GetRecordFields t
-        |> Seq.map(fun p -> sprintf "\t\t%s %s {get; set;}\r\n" (p.PropertyType.Name |> toValType) p.Name)
+        |> Seq.map(fun p -> sprintf "\t\t\t%s %s {get; set;}\r\n" (p.PropertyType.Name |> toValType) p.Name)
         |> String.Concat
 
 
-    sprintf classTemplate ns (typeof<PersonSimple>).Name ((fields typeof<PersonSimple>).ToString())
+    sprintf classTemplate ns t.Name fields
 
+genClass typeof<PersonSimple>
 
 
 
