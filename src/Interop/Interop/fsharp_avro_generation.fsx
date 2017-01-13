@@ -1,5 +1,7 @@
 ﻿
 
+
+
 #I "../../packages/"
 #r "Microsoft.Hadoop.Avro/lib/net45/Microsoft.Hadoop.Avro.dll"
 #r "System.Runtime.Serialization.dll"
@@ -24,6 +26,8 @@ open Microsoft.FSharp.Reflection
 open System.CodeDom.Compiler
 open Microsoft.CSharp
 
+
+
 type Address = { Location: string; Code: int }
 
 type Person = 
@@ -36,6 +40,25 @@ type PersonSimple =
     { Name : string
       Age : int }
 
+
+
+type IsolatedCompiler() =
+    inherit MarshalByRefObject()
+
+    member x.CurrAppDomain () = AppDomain.CurrentDomain.FriendlyName
+
+    member x.compile (typeName:string, source:string) =
+        let codeProvider = new CSharpCodeProvider()
+        let parameters = new CompilerParameters()
+        parameters.GenerateExecutable <- false
+        parameters.GenerateInMemory <- true
+        parameters.ReferencedAssemblies.Add("System.dll") |> ignore
+        parameters.ReferencedAssemblies.Add("System.Runtime.Serialization.dll") |> ignore
+
+        let results = codeProvider.CompileAssemblyFromSource(parameters, source)
+        if results.Errors.HasErrors then failwith (sprintf "Errors: %s" (results.Errors.ToString()))
+        let ass = results.CompiledAssembly
+        ass.GetType(typeName)
 
 
 
@@ -77,21 +100,18 @@ module SchemaGenerator =
     
             (t |> fullName), (sprintf classTemplate ns t.Name fields)
 
+        let isolateAndCompile (t:string, source:string) =
+
+//            let tempDomain = AppDomain.CreateDomain("TempCompilation")
+//            let runner = tempDomain.CreateInstanceFromAndUnwrap(  // http://stackoverflow.com/questions/1799373/how-can-i-prevent-compileassemblyfromsource-from-leaking-memory
+            let compiler = new IsolatedCompiler()
+            compiler.compile(t,source)
+
         let generateMessage (t:Type) =
-            let typeName, source = genClass t
-            let codeProvider = new CSharpCodeProvider()
-            let parameters = new CompilerParameters()
-            parameters.GenerateExecutable <- false
-            parameters.GenerateInMemory <- true
-            parameters.ReferencedAssemblies.Add("System.dll") |> ignore
-            parameters.ReferencedAssemblies.Add("System.Runtime.Serialization.dll") |> ignore
+            genClass t |> isolateAndCompile
 
-            let results = codeProvider.CompileAssemblyFromSource(parameters, source)
-            if results.Errors.HasErrors then failwith (sprintf "Errors: %s" (results.Errors.ToString()))
-            let ass = results.CompiledAssembly
-            ass.GetType(typeName)
 
-        let messageSchema (t:Type) = 
+        let messageSchema<'a> (t:Type) = 
             let serializer = 
                 (typeof<AvroSerializer>)
                     .GetMethod("Create", ([||]:Type array))
@@ -102,12 +122,15 @@ module SchemaGenerator =
                 .GetType()
                 .GetProperty("WriterSchema")
                 .GetValue(serializer, null)
-                .ToString()
+                :?> Schema.RecordSchema
+
+        let print schema = schema.ToString()
 
 
-    let generateSchema<'a> = typeof<'a> |> (generateMessage >> messageSchema)
+    let generateSchema<'a> = typeof<'a> |> (generateMessage >> messageSchema<'a>)
+    let generateSchemaText<'a> = generateSchema<'a> |> print
 
-SchemaGenerator.generateSchema<PersonSimple>
+let schem = SchemaGenerator.generateSchema<PersonSimple>
 
 
 
