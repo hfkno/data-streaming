@@ -42,7 +42,7 @@ type PersonSimple =
 
 
 
-type IsolatedCompiler() =
+type IsolatedContractCompiler() =
     inherit MarshalByRefObject()
 
     member x.CurrAppDomain () = AppDomain.CurrentDomain.FriendlyName
@@ -58,7 +58,7 @@ type IsolatedCompiler() =
         let results = codeProvider.CompileAssemblyFromSource(parameters, source)
         if results.Errors.HasErrors then failwith (sprintf "Errors: %s" (results.Errors.ToString()))
         let ass = results.CompiledAssembly
-        ass.GetType(typeName)
+        results.CompiledAssembly, ass.GetType(typeName)
 
 
 
@@ -75,7 +75,7 @@ module SchemaGenerator =
             | "Int32" -> "int"
             | _ -> failwith (sprintf "Unknown type '%s'" name)
 
-    
+
         let genClass (t:Type) : string * string =
 
             let classTemplate : Printf.StringFormat<string -> string -> string -> string> =
@@ -101,21 +101,16 @@ module SchemaGenerator =
             (t |> fullName), (sprintf classTemplate ns t.Name fields)
 
         let isolateAndCompile (t:string, source:string) =
-
-
-            // Start HERE!!
-            // Need to setup a separate App domain to run the compilation so that the DLL files get unloaded from memory
-
-
-//            let tempDomain = AppDomain.CreateDomain("TempCompilation")
-//            let runner = tempDomain.CreateInstanceFromAndUnwrap(  // http://stackoverflow.com/questions/1799373/how-can-i-prevent-compileassemblyfromsource-from-leaking-memory
-            let compiler = new IsolatedCompiler()
-            compiler.compile(t,source)
-
-
-
-
-
+            // Avoiding memory leaks: http://stackoverflow.com/questions/1799373/how-can-i-prevent-compileassemblyfromsource-from-leaking-memory
+            let domain = AppDomain.CreateDomain("TempContractCompilation")
+//            let compiler = 
+//                domain
+//                    .CreateInstanceAndUnwrap(typeof<IsolatedContractCompiler>.Assembly.FullName, "IsolatedContractCompiler")
+//                    :?> IsolatedContractCompiler
+            let compiler = new IsolatedContractCompiler()
+            let ass, t  = compiler.compile(t,source)    
+            domain |> AppDomain.Unload
+            t
 
 
         let generateMessage (t:Type) =
@@ -142,7 +137,6 @@ module SchemaGenerator =
     let generateSchemaText<'a> = generateSchema<'a> |> print
 
 let schem = SchemaGenerator.generateSchema<PersonSimple>
-
 
 
 
