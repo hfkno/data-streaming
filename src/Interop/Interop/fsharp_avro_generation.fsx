@@ -52,6 +52,10 @@ type IsolatedContractCompiler() =
 
 module SchemaGenerator =
 
+    type Schema = 
+        { Name : string
+          Schema : string }
+
     [<AutoOpen>]
     module private Utility =
 
@@ -98,25 +102,28 @@ module SchemaGenerator =
             let compiler = new IsolatedContractCompiler()
             let ass, t  = compiler.compile(typename,source)    
             domain |> AppDomain.Unload
-            t
+            typename, t
 
 
         let generateMessage (id:string) (t:Type) =
             (genClass id t) |> isolateAndCompile
 
 
-        let messageSchema<'a> (t:Type) = // : IAvroSerializer<'a> * Schema.RecordSchema = 
+        let messageSchema<'a>  (typeName:string, t:Type) = // : IAvroSerializer<'a> * Schema.RecordSchema = 
             let serializer = 
                 (typeof<AvroSerializer>)
                     .GetMethod("Create", ([||]:Type array))
                     .MakeGenericMethod(t)
                     .Invoke(null, null)
 
-            serializer
-                .GetType()
-                .GetProperty("WriterSchema")
-                .GetValue(serializer, null)
-                :?> Schema.RecordSchema
+            let schema =
+                serializer
+                    .GetType()
+                    .GetProperty("WriterSchema")
+                    .GetValue(serializer, null)
+                    :?> Schema.RecordSchema
+
+            { Name = typeName; Schema = schema.ToString() }
 
         let print schema = schema.ToString()
 

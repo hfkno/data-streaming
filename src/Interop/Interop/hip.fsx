@@ -42,12 +42,17 @@ type JobStatus =
 
 
 let schema = SchemaGenerator.generateSchema<JobStatus> "hfk.utility.test.orchestration"
-let schemaJson = schema.ToString()
+let schemaJson = sprintf """{"schema": "%s"}""" (schema.Schema.Replace("\"", "\\\""))
 
 let r = Streams.schemaRegistry()
+r.registerSchema(schema.Name.ToLower()  + "_telemetry-value", schemaJson)
 
-r.registerSchema(
+let utcNow = System.DateTime.UtcNow.ToString("s") + "Z" 
 
+let reg = 
+    { Status = "Complete"
+      Message = "Registration"
+      Created = utcNow }
 
 
 
