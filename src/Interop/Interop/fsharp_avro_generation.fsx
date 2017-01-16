@@ -28,19 +28,6 @@ open Microsoft.CSharp
 
 
 
-type Address = { Location: string; Code: int }
-
-type Person = 
-    { Name : string
-      Age : int
-      Address : Address }
-
-
-type PersonSimple = 
-    { Name : string
-      Age : int 
-      Created: DateTime }
-
 
 
 type IsolatedContractCompiler() =
@@ -127,31 +114,43 @@ module SchemaGenerator =
                     .MakeGenericMethod(t)
                     .Invoke(null, null)
 
-            let schema =
-                serializer
-                    .GetType()
-                    .GetProperty("WriterSchema")
-                    .GetValue(serializer, null)
-                    :?> Schema.RecordSchema
-            
-            //schema.Name <- id
-            schema
+            serializer
+                .GetType()
+                .GetProperty("WriterSchema")
+                .GetValue(serializer, null)
+                :?> Schema.RecordSchema
         let print schema = schema.ToString()
 
 
     let generateSchema<'a> id = typeof<'a> |> (generateMessage id >> messageSchema<'a>)
     let generateSchemaText<'a> = generateSchema<'a> |> print
 
-let schem = SchemaGenerator.generateSchema<PersonSimple> "hfk.utility.test"
 
 
-// use schemastring with kafka interop to get a new schema and start sending F# messages through the new pipeline
 
-module OneTwo =
+
+
+
+
+module SchemaGeneratorTest =
+
+    type Address = { Location: string; Code: int }
+
+    type Person = 
+        { Name : string
+          Age : int
+          Address : Address }
+
+    type PersonSimple = 
+        { Name : string
+          Age : int 
+          Created: DateTime }
+
+    let schema () = SchemaGenerator.generateSchema<PersonSimple> "hfk.utility.test"
 
     type Three = {Name : string}
 
-SchemaGenerator.generateSchema<OneTwo.Three>
+    SchemaGenerator.generateSchema<Three> "hfk.utility.test"
 
 
 
@@ -160,77 +159,78 @@ SchemaGenerator.generateSchema<OneTwo.Three>
 
 
 
-// AVRO Serializer Example: only works with public setters and getters
-let serializer = AvroSerializer.Create<PersonSimple>()
-printfn "%s" (serializer.WriterSchema.ToString())
+
+
+module Examples =
+
+    open SchemaGeneratorTest
+
+    // AVRO Serializer Example: only works with public setters and getters
+    let serializer = AvroSerializer.Create<PersonSimple>()
+    printfn "%s" (serializer.WriterSchema.ToString())
 
 
 
-// JSON Property extraction after serializtion example
+    // JSON Property extraction after serializtion example
+    let json = JsonConvert.SerializeObject({ Name = "OI"; Age = 123; Address = { Location = "Loc"; Code = 456 } })
+    let jo = JObject.Parse(json)
 
-let json = JsonConvert.SerializeObject({ Name = "OI"; Age = 123; Address = { Location = "Loc"; Code = 456 } })
-let jo = JObject.Parse(json)
-
-for p in jo.Properties() do
-    printfn "%s" p.Name
-    printfn "%s" (p.Type.ToString())
-    printfn "%A"  (p.Value.ToString())
-    printfn "%O" (p.Type.GetType())
-
+    for p in jo.Properties() do
+        printfn "%s" p.Name
+        printfn "%s" (p.Type.ToString())
+        printfn "%A"  (p.Value.ToString())
+        printfn "%O" (p.Type.GetType())
 
 
 
-// JSON SChema Generator Example
-let jgen = new JSchemaGenerator()
-let tsc = jgen.Generate(typeof<PersonSimple>)
-let ssc = jgen.Generate(typeof<Person>)
+    // JSON SChema Generator Example
+    let jgen = new JSchemaGenerator()
+    let tsc = jgen.Generate(typeof<PersonSimple>)
+    let ssc = jgen.Generate(typeof<Person>)
 
+    let rec listProps indent (props:IDictionary<string, JSchema>) =
+        for p in props do
+            printfn "%O"p.Key
+            printfn "%O"p.Value
+            listProps (indent + 1) p.Value.Properties
 
-let rec listProps indent (props:IDictionary<string, JSchema>) =
-    for p in props do
-        printfn "%O"p.Key
-        printfn "%O"p.Value
-        listProps (indent + 1) p.Value.Properties
-
-
-listProps 0 (ssc.Properties)
+    listProps 0 (ssc.Properties)
 
 
 
-// Literate F# Code Formatting Example - Extract documentation strings for inclusion in avro schemas
+    // Literate F# Code Formatting Example - Extract documentation strings for inclusion in avro schemas
 
-open FSharp.CodeFormat
-open System.Reflection
+    open FSharp.CodeFormat
+    open System.Reflection
 
-let formattingAgent = CodeFormat.CreateAgent()
-let source = """
-    /// This is the cocumentation
-    let hello () = 
-      // Normal content
-      printfn "Hello world"
-  """
-let snippets, errors = formattingAgent.ParseSource("C:\\snippet.fsx", source)
+    let formattingAgent = CodeFormat.CreateAgent()
+    let source = """
+        /// This is the cocumentation
+        let hello () = 
+          // Normal content
+          printfn "Hello world"
+      """
+    let snippets, errors = formattingAgent.ParseSource("C:\\snippet.fsx", source)
 
-// Get the first snippet and obtain list of lines
-let (Snippet(title, lines)) = snippets |> Seq.head
+    // Get the first snippet and obtain list of lines
+    let (Snippet(title, lines)) = snippets |> Seq.head
+
+    let show lines =
+        // Iterate over all lines and all tokens on each line
+        for (Line(tokens)) in lines do
+          for token in tokens do
+            match token with
+            | TokenSpan.Token(kind, code, tip) -> 
+                printf "%s" code
+                tip |> Option.iter (fun spans ->
+                  printfn "%A" spans)          
+            | TokenSpan.Omitted _ 
+            | TokenSpan.Output _ 
+            | TokenSpan.Error _ -> ()
+          printfn ""
 
 
-let show lines =
-    // Iterate over all lines and all tokens on each line
-    for (Line(tokens)) in lines do
-      for token in tokens do
-        match token with
-        | TokenSpan.Token(kind, code, tip) -> 
-            printf "%s" code
-            tip |> Option.iter (fun spans ->
-              printfn "%A" spans)          
-        | TokenSpan.Omitted _ 
-        | TokenSpan.Output _ 
-        | TokenSpan.Error _ -> ()
-      printfn ""
-
-
-show lines
+    show lines
 
 
 
