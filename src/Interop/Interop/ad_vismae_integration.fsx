@@ -603,6 +603,7 @@ module Test =
                     select d } |> Seq.toList
         dis
 
+//let vus = VismaEnterprise.users() |> Seq.toList
 
 
 

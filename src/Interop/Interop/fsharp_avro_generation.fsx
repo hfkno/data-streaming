@@ -102,10 +102,21 @@ module SchemaGenerator =
 
         let isolateAndCompile (t:string, source:string) =
 
+
+            // Start HERE!!
+            // Need to setup a separate App domain to run the compilation so that the DLL files get unloaded from memory
+
+
 //            let tempDomain = AppDomain.CreateDomain("TempCompilation")
 //            let runner = tempDomain.CreateInstanceFromAndUnwrap(  // http://stackoverflow.com/questions/1799373/how-can-i-prevent-compileassemblyfromsource-from-leaking-memory
             let compiler = new IsolatedCompiler()
             compiler.compile(t,source)
+
+
+
+
+
+
 
         let generateMessage (t:Type) =
             genClass t |> isolateAndCompile
