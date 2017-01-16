@@ -40,31 +40,31 @@
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
+    <Content Include="sensitive.config" />
+    <Content Include="config.config" />
     <None Include="docs\Overall_Plan.md">
       <Link>Overall_Plan.md</Link>
     </None>
     <None Include="EIP.md" />
     <None Include="template-file.html" />
-    <None Include="eip.fsx" />
     <None Include="packages.config" />
-    <None Include="docker-operations.fsx" />
+    <None Include="eip.fsx" />
     <Compile Include="AkkaExtensions.fs" />
-    <None Include="configuration.fsx" />
     <None Include="akka_basics.fsx" />
     <None Include="bootcamp_ch_1.fsx" />
-    <None Include="swagger.fsx" />
-    <Compile Include="kafka-interop.fsx" />
-    <None Include="vismae_amestoksv_integration.fsx" />
-    <None Include="ad_vismae_integration.fsx" />
-    <None Include="vismae_exchange_integration.fsx" />
+    <None Include="docker-operations.fsx" />
+    <None Include="configuration.fsx" />
     <None Include="make-docs.fsx" />
-    <Content Include="config.config" />
-    <Content Include="sensitive.config" />
-    <None Include="scratch.fsx" />
-    <None Include="hip.fsx" />
+    <None Include="swagger.fsx" />
+    <None Include="ad_vismae_integration.fsx" />
+    <None Include="vismae_amestoksv_integration.fsx" />
+    <None Include="vismae_exchange_integration.fsx" />
     <None Include="fsharp_avro_generation.fsx" />
     <Compile Include="Streaming.fs" />
     <None Include="streaming.fsx" />
+    <Compile Include="streaming-examples.fsx" />
+    <None Include="hip.fsx" />
+    <None Include="scratch.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Akka.DI.Core">
