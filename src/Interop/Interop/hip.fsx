@@ -1,6 +1,11 @@
 ﻿
 
 
+#load "fsharp_avro_generation.fsx"
+
+open Fsharp_avro_generation
+
+
 
 // Push a sched to kafka
         // independent sched which pushes jobs when they are read
@@ -15,4 +20,32 @@ type Integration =
     { Id : string
       Execute : unit -> unit }
 
-      
+ 
+
+
+
+
+
+
+
+
+
+
+
+// use schemastring with kafka interop to get a new schema and start sending F# messages through the new pipeline
+
+
+// Type to register
+type JobStatus = 
+    {
+        Status : string // Complete | Progress | Started
+        Message : string
+        Created : string
+    }
+
+
+let schema = SchemaGenerator
+
+
+
+
