@@ -42,6 +42,16 @@ type JobStatus =
 
 
 let schema = SchemaGenerator.generateSchema<JobStatus> "hfk.utility.test.orchestration"
+let schemaJson = schema.ToString()
+
+
+
+
+
+
+
+
+
 
 
 

@@ -27,51 +27,55 @@ open System.Linq
 
 
 *)
-type Result<'TSuccess,'TError> =
-     | Success of 'TSuccess
-     | Error of 'TError
 
-// Success value
-let inline sval (res:Result<'a,'b>) = match res with | Success a -> a | Error msg -> failwith (msg.ToString())
+[<AutoOpen>]
+module Utility =
+
+    type Result<'TSuccess,'TError> =
+         | Success of 'TSuccess
+         | Error of 'TError
+
+    // Success value
+    let inline sval (res:Result<'a,'b>) = match res with | Success a -> a | Error msg -> failwith (msg.ToString())
 
 
-let (|Exists|_|) (str:string) = if System.String.IsNullOrEmpty str then None else Some str
+    let (|Exists|_|) (str:string) = if System.String.IsNullOrEmpty str then None else Some str
 
-let cleanJson (json:string) = json.Replace("\\\"", "\"")
+    let cleanJson (json:string) = json.Replace("\\\"", "\"")
 
-let splitJsonArray (input:Result<string,string>) =
-    match input with
-    | Success str ->
-        match str with
-        | Exists s ->
-            str.Replace("[", "").Replace("]", "").Replace("\"", "").Split(',') |> Success
-        | _ -> [||] |> Success
-    | Error msg -> Error msg
+    let splitJsonArray (input:Result<string,string>) =
+        match input with
+        | Success str ->
+            match str with
+            | Exists s ->
+                str.Replace("[", "").Replace("]", "").Replace("\"", "").Split(',') |> Success
+            | _ -> [||] |> Success
+        | Error msg -> Error msg
 
-let splitIntArray (input:string) =
-    input.Replace("[", "").Replace("]", "").Split(',') 
-    |> Array.map (fun n -> System.Int32.Parse(n))
+    let splitIntArray (input:string) =
+        input.Replace("[", "").Replace("]", "").Split(',') 
+        |> Array.map (fun n -> System.Int32.Parse(n))
 
-let stringFold (proc:char -> string) (s:string)=
-    String.Concat(s.Select(proc).ToArray())
+    let stringFold (proc:char -> string) (s:string)=
+        String.Concat(s.Select(proc).ToArray())
 
-let foldProc (c:char) =
-    if (int c) >= 128 then
-        String.Format(@"\u{0:x4}", int c)
-    else
-        c.ToString()
+    let foldProc (c:char) =
+        if (int c) >= 128 then
+            String.Format(@"\u{0:x4}", int c)
+        else
+            c.ToString()
 
-let escapeToAscii (s:string) = s |> stringFold foldProc
+    let escapeToAscii (s:string) = s |> stringFold foldProc
 
-type ProperCaseCamelCasePropertyNamesResolver() =
-    inherit Serialization.DefaultContractResolver ()
-    override x.ResolveDictionaryKey s = s
+    type ProperCaseCamelCasePropertyNamesResolver() =
+        inherit Serialization.DefaultContractResolver ()
+        override x.ResolveDictionaryKey s = s
 
-let toJson o =
-    JsonConvert.SerializeObject(o, 
-        new JsonSerializerSettings(ContractResolver = new ProperCaseCamelCasePropertyNamesResolver()))
+    let toJson o =
+        JsonConvert.SerializeObject(o, 
+            new JsonSerializerSettings(ContractResolver = new ProperCaseCamelCasePropertyNamesResolver()))
 
-let encode = toJson
+    let encode = toJson
 
 
 
@@ -305,4 +309,14 @@ module SchemaPersistence =
             | Success s -> ignore
             | Error msg -> failwith msg
             |> ignore
+
+
+module Streams =
+    
+    let messageLog () = new Kafka("http://localhost:8082")
+    let schemaRegistry () = new SchemaRegistry("http://localhost:8081")
+
+
+
+
 

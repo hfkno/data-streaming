@@ -32,7 +32,7 @@ open Streaming
 // TODO: need to check all consumer stuff..
 
             
-let k = new Kafka("http://localhost:8082")
+let k = Streams.messageLog()
 k.createConsumer("herro")
 k.listTopics()
 k.schemaPolicy()
@@ -69,7 +69,7 @@ match k.consume(consumerGroup, "ad_user") with
 k.deleteConsumer(consumer.Group, consumer.Name)
 
 
-let r = new SchemaRegistry("http://localhost:8081")
+let r = Streams.schemaRegistry()
 
 r.registerSchema("randotesto3" + "-value", """{"schema": "{\"type\": \"record\", \"name\": \"User\", \"fields\": [ { \"name\": \"name\", \"type\": \"string\" }, { \"name\": \"nameo\", \"type\": \"string\", \"default\" : \"ddd\" } ] }"}""")
 r.subjects()
