@@ -38,7 +38,8 @@ type Person =
 
 type PersonSimple = 
     { Name : string
-      Age : int }
+      Age : int 
+      Created: DateTime }
 
 
 
@@ -67,16 +68,19 @@ module SchemaGenerator =
     [<AutoOpen>]
     module private Utility =
 
-        let nameSpace (t:Type) = if t.Namespace = null then "hfk" else t.Namespace
-        let fullName (t:Type) = sprintf "%s.%s" (t |> nameSpace) t.Name
+
+        let fullName (id:string) (t:Type) = sprintf "%s.%s" id t.Name
         let toValType (name:string) = 
             match name with
+            | "Boolean" -> "boolean"
             | "String" ->"string"
             | "Int32" -> "int"
+            | "Double" -> "double"
+            | "DateTime" -> "long"
             | _ -> failwith (sprintf "Unknown type '%s'" name)
 
 
-        let genClass (t:Type) : string * string =
+        let genClass (id:string) (t:Type) : string * string =
 
             let classTemplate : Printf.StringFormat<string -> string -> string -> string> =
                 """
@@ -89,18 +93,17 @@ module SchemaGenerator =
             }
                 """
 
-            let ns = t |> nameSpace
-
             let fields = 
                 FSharpType.GetRecordFields t
                 |> Seq.map(fun p -> 
                     sprintf "\t\t\t[System.Runtime.Serialization.DataMember]\r\n\t\t\t%s %s {get; set;}\r\n" 
                             (p.PropertyType.Name |> toValType) p.Name )
                 |> String.Concat
-    
-            (t |> fullName), (sprintf classTemplate ns t.Name fields)
+            let fff = (sprintf classTemplate id t.Name fields)
+            printf "%s" fff
+            (t |> fullName id), (sprintf classTemplate id t.Name fields)
 
-        let isolateAndCompile (t:string, source:string) =
+        let isolateAndCompile (typename:string, source:string) =
             // Avoiding memory leaks: http://stackoverflow.com/questions/1799373/how-can-i-prevent-compileassemblyfromsource-from-leaking-memory
             let domain = AppDomain.CreateDomain("TempContractCompilation")
 //            let compiler = 
@@ -108,66 +111,47 @@ module SchemaGenerator =
 //                    .CreateInstanceAndUnwrap(typeof<IsolatedContractCompiler>.Assembly.FullName, "IsolatedContractCompiler")
 //                    :?> IsolatedContractCompiler
             let compiler = new IsolatedContractCompiler()
-            let ass, t  = compiler.compile(t,source)    
+            let ass, t  = compiler.compile(typename,source)    
             domain |> AppDomain.Unload
             t
 
 
-        let generateMessage (t:Type) =
-            genClass t |> isolateAndCompile
+        let generateMessage (id:string) (t:Type) =
+            (genClass id t) |> isolateAndCompile
 
 
-        let messageSchema<'a> (t:Type) = 
+        let messageSchema<'a> (t:Type) = // : IAvroSerializer<'a> * Schema.RecordSchema = 
             let serializer = 
                 (typeof<AvroSerializer>)
                     .GetMethod("Create", ([||]:Type array))
                     .MakeGenericMethod(t)
                     .Invoke(null, null)
 
-            serializer
-                .GetType()
-                .GetProperty("WriterSchema")
-                .GetValue(serializer, null)
-                :?> Schema.RecordSchema
-
+            let schema =
+                serializer
+                    .GetType()
+                    .GetProperty("WriterSchema")
+                    .GetValue(serializer, null)
+                    :?> Schema.RecordSchema
+            
+            //schema.Name <- id
+            schema
         let print schema = schema.ToString()
 
 
-    let generateSchema<'a> = typeof<'a> |> (generateMessage >> messageSchema<'a>)
+    let generateSchema<'a> id = typeof<'a> |> (generateMessage id >> messageSchema<'a>)
     let generateSchemaText<'a> = generateSchema<'a> |> print
 
-let schem = SchemaGenerator.generateSchema<PersonSimple>
+let schem = SchemaGenerator.generateSchema<PersonSimple> "hfk.utility.test"
 
 
+// use schemastring with kafka interop to get a new schema and start sending F# messages through the new pipeline
 
+module OneTwo =
 
+    type Three = {Name : string}
 
-[<System.Runtime.Serialization.DataContract>]
-type PersonC() =
-    let mutable name : string = null
-    let mutable age : int = 0
-    member x.Name
-        with get() = name
-        and set(c) = name <- c
-    [<DataMember(Name = "Age")>]
-    member x.Age
-        with get() = age
-        and set(a) = age <- a
-
-[<DataContract>]
-type Test =
-    [<DataMember>]
-    member x.Name
-        with get() = ""
-        and set(c:string) = () //<- c
-    [<DataMember>]
-    member x.Age
-        with get() = 5
-        and set(a:int) = ()
-    
-let tser = AvroSerializer.Create<Test>()  // it seems like DataContract is neccesary... not sure why though
-tser.WriterSchema.ToString()
-(typeof<Test>).GetTypeInfo().GetConstructor(Type.EmptyTypes) <> null
+SchemaGenerator.generateSchema<OneTwo.Three>
 
 
 
@@ -175,18 +159,17 @@ tser.WriterSchema.ToString()
 
 
 
-let serializer = AvroSerializer.Create<PersonC>()   // only wants to serializepublic getters n such...
-                                                    // I want records...
+
+// AVRO Serializer Example: only works with public setters and getters
+let serializer = AvroSerializer.Create<PersonSimple>()
 printfn "%s" (serializer.WriterSchema.ToString())
 
 
 
-
+// JSON Property extraction after serializtion example
 
 let json = JsonConvert.SerializeObject({ Name = "OI"; Age = 123; Address = { Location = "Loc"; Code = 456 } })
-
 let jo = JObject.Parse(json)
-
 
 for p in jo.Properties() do
     printfn "%s" p.Name
@@ -197,9 +180,8 @@ for p in jo.Properties() do
 
 
 
-
+// JSON SChema Generator Example
 let jgen = new JSchemaGenerator()
-let sch = jgen.Generate(typeof<PersonC>)
 let tsc = jgen.Generate(typeof<PersonSimple>)
 let ssc = jgen.Generate(typeof<Person>)
 
@@ -215,7 +197,7 @@ listProps 0 (ssc.Properties)
 
 
 
-
+// Literate F# Code Formatting Example - Extract documentation strings for inclusion in avro schemas
 
 open FSharp.CodeFormat
 open System.Reflection
