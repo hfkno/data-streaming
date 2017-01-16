@@ -63,6 +63,8 @@
     <None Include="scratch.fsx" />
     <None Include="hip.fsx" />
     <None Include="fsharp_avro_generation.fsx" />
+    <Compile Include="Streaming.fs" />
+    <None Include="streaming.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Akka.DI.Core">

@@ -2,9 +2,10 @@
 
 
 #load "fsharp_avro_generation.fsx"
+#load "streaming.fsx"
 
 open Fsharp_avro_generation
-
+open Streaming
 
 
 // Push a sched to kafka
@@ -28,10 +29,6 @@ type Integration =
 
 
 
-
-
-
-
 // use schemastring with kafka interop to get a new schema and start sending F# messages through the new pipeline
 
 
@@ -44,7 +41,7 @@ type JobStatus =
     }
 
 
-let schema = SchemaGenerator
+let schema = SchemaGenerator.generateSchema<JobStatus> "hfk.utility.test.orchestration"
 
 
 
