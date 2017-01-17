@@ -77,6 +77,16 @@ module Utility =
 
     let encode = toJson
 
+    let toType<'a> (jsonObjectList:string) =
+        let convert value = JsonConvert.DeserializeObject<'a>(value)
+        let value token = (token:JToken).["value"].ToString()
+        let values = Seq.map (value >> convert)
+        let parse  = JObject.Parse
+        let children jo = (jo:JObject).["items"].Children()
+
+        sprintf "{items:%s}" jsonObjectList 
+        |> (parse >> children >> values)
+
 
 
 
@@ -170,6 +180,9 @@ type Kafka(rootUrl) =
             let consumedData = x.consume(consumer, topic)
             x.deleteConsumer(consumer) |> ignore
             consumedData)
+            
+    member x.consumeTyped<'a> (consumer:ConsumerInstance, topic:string) =
+        x.consume(consumer, topic) |> sval |> toType<'a>
 
     member x.produceVersionedMessage schemaId (message:'a) =
         let messageJson = message |> toJson |> escapeToAscii

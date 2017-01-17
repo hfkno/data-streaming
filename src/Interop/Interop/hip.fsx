@@ -93,32 +93,31 @@ let ffff = JsonConvert.DeserializeObject<IEnumerable<TestR>>(tjson2)
 ffff
 
 let toType<'a> (jsonObjectList:string) =
-    
+    let convert value = JsonConvert.DeserializeObject<'a>(value)
     let value token = (token:JToken).["value"].ToString()
-    let convert value = JsonConvert.DeserializeObject<'a>(value) 
+    let values = Seq.map (value >> convert)
     let parse  = JObject.Parse
-    let items jo = (jo:JObject).["items"].Children()
-    let jo = JObject.Parse(sprintf "{items:%s}" jsonObjectList)
-    let tokens = jo.["items"].Children()
+    let children jo = (jo:JObject).["items"].Children()
 
-
-    let tokens =
-        (sprintf "{items:%s}" jsonObjectList) 
-        |> parse
-        |> items
+    sprintf "{items:%s}" jsonObjectList 
+    |> (parse >> children >> values)
 
 
 
-    [ for token in tokens do 
-        yield token |> value |> convert
-        //yield JsonConvert.DeserializeObject<'a>(token.["value"].ToString()) 
-        ]
-
-
-jsonRet |> toType<JobStatus>
+jsonRet |> toType<JobStatus> |> Seq.toList
                 
 """[{"key":null,"value":""},{"key":null,"value":""}]""" |> toType<TestR>       
 
+
+type Streaming.Kafka with
+
+    member x.consumeTyped<'a> (consumer:ConsumerInstance, topic:string) =
+        x.consume(consumer, topic) |> sval |> toType<'a>
+
+let consumer = k.createConsumer("randomObserver") |> sval
+let tret = k.consumeTyped<JobStatus>(consumer, "hfk.utility.test.orchestration.JobStatus_telemetry")
+k.deleteConsumer(consumer)
+tret
 
 // Setup a schedule
 // Kickoff the integrations using the Int type defined above
