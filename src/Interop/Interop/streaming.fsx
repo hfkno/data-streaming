@@ -147,17 +147,17 @@ type Kafka(rootUrl) =
              body = TextRequest (sprintf """{"format": "avro", "auto.offset.reset": "smallest"}""" ))
         |> x.toConsumerInstance consumerGroup
 
-    member x.deleteConsumer(consumerGroup:string, consumerName:string) =
+    member x.deleteConsumer(consumer:ConsumerInstance) =
          x.request
-          ( x.url (sprintf "consumers/%s/instances/%s" consumerGroup consumerName),
+          ( x.url (sprintf "consumers/%s/instances/%s" consumer.Group consumer.Name),
             httpMethod = "DELETE")
 
     member x.deleteConsumerInstance(consumer:ConsumerInstance) =
-        x.deleteConsumer(consumer.Group, consumer.Name)
+        x.deleteConsumer(consumer)
 
-    member x.consume(consumerName:string, topic:string) =
+    member x.consume(consumer:ConsumerInstance, topic:string) =
         x.request
-         ( x.url (sprintf "consumers/my_avro_consumer/instances/%s/topics/%s" consumerName topic),
+         ( x.url (sprintf "consumers/%s/instances/%s/topics/%s" consumer.Group consumer.Name topic),
            httpMethod = "GET",
            headers = [ "Accept", "application/vnd.kafka.avro.v1+json" ])
 
@@ -167,8 +167,8 @@ type Kafka(rootUrl) =
         |> sval
         |> (fun consumer ->
             printfn "%O"consumer
-            let consumedData = x.consume(consumerName, topic)
-            x.deleteConsumer(consumer.Group, consumer.Name) |> sval |> ignore
+            let consumedData = x.consume(consumer, topic)
+            x.deleteConsumer(consumer) |> ignore
             consumedData)
 
     member x.produceVersionedMessage schemaId (message:'a) =

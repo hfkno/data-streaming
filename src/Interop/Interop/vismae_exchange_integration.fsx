@@ -131,25 +131,25 @@ module VismaEnterprise =
 
 module Integration =
 
-    let private wrapAdUsers adUsers =
-        adUsers |> Seq.map(fun email -> 0, email)
+    let private wrapAdUsers (adUsers:ActiveDirectory.User seq) =
+        adUsers |> Seq.map(fun u -> 0, u.Email)
 
 
     let adUsers () = 
         ActiveDirectory.users () 
-            |> Seq.map (fun u -> u.Email) 
-            |> Seq.filter (fun u -> u |> exists) 
-            |> Seq.map(fun email -> 0, email)
+            |> Seq.filter (fun u -> u.Email |> exists) 
+            |> wrapAdUsers
+
 
     let usersMissingDelegateFrom users delegateEmail =
         [ for (id, email) in users do
-            printfn "Checking delegates for %i %s" id email
+            printfn "Checking %s for delegates" email
             if not <| Exchange.hasDelegate email delegateEmail then 
                 yield (id, email) ]
                 
     let showUsersMissingDelegate users delegateEmail = 
         for (id, email) in usersMissingDelegateFrom users delegateEmail do
-            printfn "Missing delegate - user %i:%s lacks email delegation to %s" id email delegateEmail                
+            printfn "\"%-40s\" - missing delegate" email
 
     let showEFakturaUsersMissingDelegate delegateEmail = 
         showUsersMissingDelegate (VismaEnterprise.fakturaUsers()) delegateEmail
@@ -157,7 +157,7 @@ module Integration =
     let showActiveDirectoryUsersMissingDelegate delegateEmail = 
         showUsersMissingDelegate (adUsers()) delegateEmail
 
-    let private setDelegate id email delegateEmail =
+    let setDelegate id email delegateEmail =
         printfn "Setting delegate for %i:%s" id email
         email |> Exchange.setDelegate delegateEmail
 
@@ -171,14 +171,17 @@ module Integration =
     let setMissingEFakturaDelegates delegateEmail = 
         [ for (id, email) in usersMissingDelegateFrom (VismaEnterprise.fakturaUsers()) delegateEmail do
             yield setDelegate id email delegateEmail ]
-
+ 
+    let setMissingActiveDirectoryDelegates delegateEmail = 
+        [ for (id, email) in usersMissingDelegateFrom (adUsers()) delegateEmail do
+            yield setDelegate id email delegateEmail ]
 
     let checkIndividualUser usersDisplayName =
         let user = 
             VismaEnterprise.users () 
             |> Seq.filter(fun u -> u.DisplayName = usersDisplayName) 
             |> Seq.map( fun u -> (u.VismaId, u.Email)) 
-        let missing = usersMissingDelegateFrom (user) delegateEmail
+        let missing = usersMissingDelegateFrom user delegateEmail
         missing
 
     let updateAllActiveDirectoryUsers () =
@@ -189,8 +192,8 @@ module Integration =
 
 
 Integration.showActiveDirectoryUsersMissingDelegate delegateEmail
-//Integration.setMissingDelegates delegateEmail
-
+//Integration.setMissingActiveDirectoryDelegates delegateEmail
+Integration.setDelegate 0 "Elizabeth.Gjessing@hfk.no" "vismapost@hfk.no"
 
 
 let checkUser userMail =

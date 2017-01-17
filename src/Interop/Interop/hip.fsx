@@ -24,49 +24,8 @@ type Integration =
       Execute : unit -> unit }
 
  
-
-
-
-
-
-
-
-// use schemastring with kafka interop to get a new schema and start sending F# messages through the new pipeline
-
-
-// Type to register
-type JobStatus = 
-    {
-        Status : string // Complete | Progress | Started
-        Message : string
-        Created : string
-    }
-
-
-let schema = SchemaGenerator.generateSchema<JobStatus> "hfk.utility.test.orchestration"
-let schemaJson = sprintf """{"schema": "%s"}""" (schema.Schema.Replace("\"", "\\\""))
-
-let r = Streams.schemaRegistry()
-r.registerSchema(schema.Name.ToLower()  + "_telemetry-value", schemaJson)
-
-let utcNow = System.DateTime.UtcNow.ToString("s") + "Z" 
-
-
-let getReg() =
-    { Status = "Complete"
-      Message = "Registration"
-      Created = utcNow }
-
-
-let k = Streams.messageLog()
-
-for i in 1 .. 10000 do
-    printfn "%i" i
-    printf "%A" 
-        (k.publishVersionedMessage("hfk.utility.test.orchestration.JobStatus_telemetry", 6, getReg()))
-        
-
-
+ 
+let utcNow = System.DateTime.UtcNow.ToString("s") + "Z"         
 
 type PublicationInfo = 
     { Name : string
@@ -76,27 +35,78 @@ let pubInfo<'a> (name:string) (purpose:string) =
     let schema = SchemaGenerator.generateSchema<'a> name
     let schemaJson = sprintf """{"schema": "%s"}""" (schema.Schema.Replace("\"", "\\\""))
 
-    let name = schema.Name.ToLower()  + "_" + purpose
-    let json = r.registerSchema(name + "-value", schemaJson) |> sval
+    let name = schema.Name  + "_" + purpose
+    let json = Streams.schemaRegistry().registerSchema(name + "-value", schemaJson) |> sval
     let id = JObject.Parse(json).Properties().First().Value.Value<int>()
     { Name = name; SchemaId = id }
+
+
+
+
+
+type JobStatus = 
+    { Status : string // Complete | Progress | Started
+      Message : string
+      Created : string }
 
 
 type RandomTelemetry = 
     { Message : string
       Value : int }      
-    
+
+let jnfo = pubInfo<JobStatus> "hfk.utility.test.orchestration" "telemetry"     
 let info = pubInfo<RandomTelemetry> "hfk.utility.test.orchestration" "telemetry" 
 
 
-let doTelemFill () =
-    async {
-        for i in 1 .. 10000 do
-            printfn "%i" i
-            printfn "%A" 
-                (k.publishVersionedMessage(info.Name, info.SchemaId, {Message="I can publish!!";Value=i}))
-        }
 
-[ doTelemFill(); doTelemFill(); doTelemFill(); doTelemFill()]
-|> Async.Parallel
-|> Async.RunSynchronously
+
+
+// Subscribe to messages and read FSHarp records on the other side XD
+
+let k = Streams.messageLog()
+let c = k.createConsumer("randomObserver")
+k.consume(c, "hfk.utility.test.orchestration.JobStatus_telemetry")
+
+
+
+
+
+
+
+
+
+
+let simpleFill() =
+    let getReg() =
+        { Status = "Complete"
+          Message = "Registration"
+          Created = utcNow }
+
+
+    let k = Streams.messageLog()
+
+    for i in 1 .. 10000 do
+        printfn "%i" i
+        printf "%A" 
+            (k.publishVersionedMessage("hfk.utility.test.orchestration.JobStatus_telemetry", 6, getReg()))
+
+
+let massFill () = 
+    let doTelemFill () =
+        let k = Streams.messageLog()
+        async {
+            for i in 1 .. 100000 do
+                printfn "%i" i
+                printfn "%A" 
+                    (k.publishVersionedMessage(info.Name, info.SchemaId, {Message="I can publish!!";Value=i}) |> sval)
+            }
+
+    [ doTelemFill(); 
+      doTelemFill(); 
+      doTelemFill(); 
+      doTelemFill(); 
+      doTelemFill(); 
+      doTelemFill(); 
+      doTelemFill(); ]
+    |> Async.Parallel
+    |> Async.RunSynchronously

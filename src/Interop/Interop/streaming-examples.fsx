@@ -61,12 +61,12 @@ let consumerGroup = "ze_test_consumer"
 let consumer =  k.createConsumer(consumerGroup) |> sval 
 
 // Read updated rolling data
-match k.consume(consumerGroup, "ad_user") with
+match k.consume(consumer, "ad_user") with
 | Success str -> printf "%s" str |> ignore
 | Error msg -> printf "%s" msg |> ignore
 
 // Cleanup
-k.deleteConsumer(consumer.Group, consumer.Name)
+k.deleteConsumer(consumer)
 
 
 let r = Streams.schemaRegistry()
