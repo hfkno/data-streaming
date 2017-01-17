@@ -7,6 +7,7 @@
 open Fsharp_avro_generation
 open Streaming
 open System.Linq
+open System.Collections.Generic
 open Newtonsoft.Json
 open Newtonsoft.Json.Linq
 
@@ -50,7 +51,7 @@ type JobStatus =
       Created : string }
 
 
-type RandomTelemetry = 
+type RandomTelemetry =  
     { Message : string
       Value : int }      
 
@@ -64,11 +65,49 @@ let info = pubInfo<RandomTelemetry> "hfk.utility.test.orchestration" "telemetry"
 // Subscribe to messages and read FSHarp records on the other side XD
 
 let k = Streams.messageLog()
-let c = k.createConsumer("randomObserver")
-k.consume(c, "hfk.utility.test.orchestration.JobStatus_telemetry")
+let c = k.createConsumer("randomObserver") |> sval
+let ret = k.consume(c, "hfk.utility.test.orchestration.JobStatus_telemetry")
+k.deleteConsumer(c)
+
+
+let rawrRet = ret |> sval
 
 
 
+
+
+// parse message return in JSON
+let jsonRet = """[{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":0},{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":1},{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":2},{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":3}]"""
+let jsonRet2 = """[{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":0]"""
+
+JObject.Parse("""{items: [{"key":null,"value":""},{"key":null,"value":""}]}""")
+
+
+let jo = JObject.Parse(sprintf "{items:%s}" jsonRet)
+let d = jo.["items"].[0].["value"].["Status"].Value<string>()
+
+type TestR = { One : string; Two: int}
+let moo = [{One = "yo"; Two = 3};{One="hey";Two=4}]
+let tjson2 = JsonConvert.SerializeObject(moo)
+let ffff = JsonConvert.DeserializeObject<IEnumerable<TestR>>(tjson2)
+ffff
+
+let toType<'a> (jsonObjectList:string) =
+    let jo = JObject.Parse(sprintf "{items:%s}" jsonObjectList)
+    let tokens = jo.["items"].Children()
+    [ for token in tokens do 
+        yield token ]
+        
+       
+
+
+// Setup a schedule
+// Kickoff the integrations using the Int type defined above
+// Publish success to Kafka
+// Start publishing data through there
+    // employees
+    // suppliers
+    // Data transfers
 
 
 
