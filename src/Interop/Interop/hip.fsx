@@ -1,6 +1,9 @@
 ﻿
 
-
+#I "../../packages/"
+#r "Quartz/lib/net40-client/Quartz.dll"
+#r "Common.Logging/lib/net40/Common.Logging.dll"
+#r "Common.Logging.Core/lib/net40/Common.Logging.Core.dll"
 #load "fsharp_avro_generation.fsx"
 #load "streaming.fsx"
 
@@ -11,13 +14,76 @@ open System.Collections.Generic
 open Newtonsoft.Json
 open Newtonsoft.Json.Linq
 
+
+
 // Push a sched to kafka
         // independent sched which pushes jobs when they are read
         
 
-// poll the job queue: dispatch jobs and start them in background threads
+// poll the job queue: integration runners should subscribe to some metadata to count runs, or whatever...
 
 // job puller can implement websockets and use webhooks to push data...
+
+
+
+
+
+
+// Setup a schedule
+// Kickoff the integrations using the Integration type defined below
+// Publish success to Kafka
+// Start publishing data through there
+    // employees
+    // suppliers
+    // Data transfers
+
+
+
+open Quartz
+open Quartz.Impl
+
+let schedulerFactory = StdSchedulerFactory()
+let scheduler = schedulerFactory.GetScheduler()
+scheduler.Start()
+
+type Job () =
+    interface IJob with
+        member x.Execute(context: IJobExecutionContext) =
+            printfn "%s" (System.DateTime.Now.ToString())
+
+let job = JobBuilder.Create<Job>().Build()
+
+let trigger =
+    TriggerBuilder.Create()
+        .WithSimpleSchedule(fun x ->
+            x.WithIntervalInSeconds(1).RepeatForever() |> ignore)
+        .Build()
+
+let t2 () = 
+    TriggerBuilder.Create()
+        .WithCronSchedule("cron cron cron")
+        .Build()
+
+let sch = scheduler.ScheduleJob(job, trigger) // |> ignore
+
+for s in scheduler.GetJobGroupNames() do
+    for key in scheduler.GetJobKeys(Matchers.GroupMatcher.GroupStartsWith(s)) do
+        printfn "%s:%s" (key.Group) (key.Name)
+
+scheduler.Shutdown(true)
+
+
+
+// Basic types
+type JobStatus = 
+    { Status : string // Complete | Progress | Started
+      Message : string
+      Created : string }
+
+
+type RandomTelemetry =  
+    { Message : string
+      Value : int }     
 
 
 type Integration = 
@@ -25,7 +91,10 @@ type Integration =
       Execute : unit -> unit }
 
  
- 
+
+
+
+// Message Generation
 let utcNow = System.DateTime.UtcNow.ToString("s") + "Z"         
 
 type PublicationInfo = 
@@ -43,96 +112,21 @@ let pubInfo<'a> (name:string) (purpose:string) =
 
 
 
-
-
-type JobStatus = 
-    { Status : string // Complete | Progress | Started
-      Message : string
-      Created : string }
-
-
-type RandomTelemetry =  
-    { Message : string
-      Value : int }      
-
+// setup messages for publishing
 let jnfo = pubInfo<JobStatus> "hfk.utility.test.orchestration" "telemetry"     
 let info = pubInfo<RandomTelemetry> "hfk.utility.test.orchestration" "telemetry" 
 
 
-
-
-
-// Subscribe to messages and read FSHarp records on the other side XD
-
+// message consumption
 let k = Streams.messageLog()
-let c = k.createConsumer("randomObserver") |> sval
-let ret = k.consume(c, "hfk.utility.test.orchestration.JobStatus_telemetry")
-k.deleteConsumer(c)
-
-
-let rawrRet = ret |> sval
-
-
-
-
-
-// parse message return in JSON
-let jsonRet = """[{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":0},{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":1},{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":2},{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":3}]"""
-let jsonRet2 = """[{"key":null,"value":{"Status":"Complete","Message":"Registration","Created":"2017-01-16T11:33:13Z"},"partition":0,"offset":0]"""
-
-JObject.Parse("""{items: [{"key":null,"value":""},{"key":null,"value":""}]}""")
-
-
-let jo = JObject.Parse(sprintf "{items:%s}" jsonRet)
-let d = jo.["items"].[0].["value"].["Status"].Value<string>()
-
-type TestR = { One : string; Two: int}
-let moo = [{One = "yo"; Two = 3};{One="hey";Two=4}]
-let tjson2 = JsonConvert.SerializeObject(moo)
-let ffff = JsonConvert.DeserializeObject<IEnumerable<TestR>>(tjson2)
-ffff
-
-let toType<'a> (jsonObjectList:string) =
-    let convert value = JsonConvert.DeserializeObject<'a>(value)
-    let value token = (token:JToken).["value"].ToString()
-    let values = Seq.map (value >> convert)
-    let parse  = JObject.Parse
-    let children jo = (jo:JObject).["items"].Children()
-
-    sprintf "{items:%s}" jsonObjectList 
-    |> (parse >> children >> values)
-
-
-
-jsonRet |> toType<JobStatus> |> Seq.toList
-                
-"""[{"key":null,"value":""},{"key":null,"value":""}]""" |> toType<TestR>       
-
-
-type Streaming.Kafka with
-
-    member x.consumeTyped<'a> (consumer:ConsumerInstance, topic:string) =
-        x.consume(consumer, topic) |> sval |> toType<'a>
-
 let consumer = k.createConsumer("randomObserver") |> sval
-let tret = k.consumeTyped<JobStatus>(consumer, "hfk.utility.test.orchestration.JobStatus_telemetry")
+let tret = k.consume<JobStatus>(consumer, "hfk.utility.test.orchestration.JobStatus_telemetry")
 k.deleteConsumer(consumer)
 tret
 
-// Setup a schedule
-// Kickoff the integrations using the Int type defined above
-// Publish success to Kafka
-// Start publishing data through there
-    // employees
-    // suppliers
-    // Data transfers
 
 
-
-
-
-
-
+// message generation
 let simpleFill() =
     let getReg() =
         { Status = "Complete"

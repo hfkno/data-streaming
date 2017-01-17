@@ -22,3 +22,4 @@ nuget Akka.NET.FSharp.API.Extensions
 nuget Microsoft.Exchange.WebServices
 nuget Microsoft.Hadoop.Avro
 nuget Newtonsoft.Json.Schema
+nuget Quartz

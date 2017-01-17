@@ -170,6 +170,9 @@ type Kafka(rootUrl) =
          ( x.url (sprintf "consumers/%s/instances/%s/topics/%s" consumer.Group consumer.Name topic),
            httpMethod = "GET",
            headers = [ "Accept", "application/vnd.kafka.avro.v1+json" ])
+            
+    member x.consume<'a> (consumer:ConsumerInstance, topic:string) =
+        x.consume(consumer, topic) |> sval |> toType<'a>
 
     member x.consumeAll(topic:string) =
         let consumerName = sprintf "consumeall_%05i_" (rand.Next(1, 99999))
@@ -180,9 +183,9 @@ type Kafka(rootUrl) =
             let consumedData = x.consume(consumer, topic)
             x.deleteConsumer(consumer) |> ignore
             consumedData)
-            
-    member x.consumeTyped<'a> (consumer:ConsumerInstance, topic:string) =
-        x.consume(consumer, topic) |> sval |> toType<'a>
+
+    member x.consumeAll<'a> (topic:string) =
+        x.consumeAll topic |> sval |> toType<'a>
 
     member x.produceVersionedMessage schemaId (message:'a) =
         let messageJson = message |> toJson |> escapeToAscii

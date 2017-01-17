@@ -39,12 +39,15 @@ NUGET
       Newtonsoft.Json (>= 9.0.1)
       NUnit (>= 3.4.1)
       System.Collections.Immutable (>= 1.1.36)
-    Autofac (4.2.1)
+    Autofac (4.3)
       NETStandard.Library (>= 1.6) - framework: >= netstandard11
       System.ComponentModel (>= 4.0.1) - framework: >= netstandard11
+    Common.Logging (3.3.1)
+      Common.Logging.Core (>= 3.3.1)
+    Common.Logging.Core (3.3.1)
     Destructurama.FSharp (1.0.14)
       Serilog (>= 1.4.204)
-    FAKE.Lib (4.48)
+    FAKE.Lib (4.49.1)
     FSharp.Compiler.Service (2.0.0.6)
     FSharp.Configuration (0.6.4)
     FSharp.Core (4.0.0.1)
@@ -184,6 +187,8 @@ NUGET
     NUnit (3.6)
       NETStandard.Library (>= 1.6) - framework: >= net463, >= netstandard16
       System.Runtime.Loader (>= 4.0) - framework: >= net463, >= netstandard16
+    Quartz (2.4.1)
+      Common.Logging (>= 3.3.1)
     runtime.debian.8-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3) - framework: >= net463, >= netstandard13, netstandard14
     runtime.fedora.23-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3) - framework: >= net463, >= netstandard13, netstandard14
     runtime.fedora.24-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3) - framework: >= net463, >= netstandard13, netstandard14
