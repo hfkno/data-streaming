@@ -93,12 +93,31 @@ let ffff = JsonConvert.DeserializeObject<IEnumerable<TestR>>(tjson2)
 ffff
 
 let toType<'a> (jsonObjectList:string) =
+    
+    let value token = (token:JToken).["value"].ToString()
+    let convert value = JsonConvert.DeserializeObject<'a>(value) 
+    let parse  = JObject.Parse
+    let items jo = (jo:JObject).["items"].Children()
     let jo = JObject.Parse(sprintf "{items:%s}" jsonObjectList)
     let tokens = jo.["items"].Children()
+
+
+    let tokens =
+        (sprintf "{items:%s}" jsonObjectList) 
+        |> parse
+        |> items
+
+
+
     [ for token in tokens do 
-        yield token ]
-        
-       
+        yield token |> value |> convert
+        //yield JsonConvert.DeserializeObject<'a>(token.["value"].ToString()) 
+        ]
+
+
+jsonRet |> toType<JobStatus>
+                
+"""[{"key":null,"value":""},{"key":null,"value":""}]""" |> toType<TestR>       
 
 
 // Setup a schedule
