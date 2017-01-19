@@ -209,125 +209,29 @@ let checkUser userMail =
     Exchange.hasDelegate testMail delegateEmail
 
 
-Exchange.showDelegates (0, "marlega@hfk.no")
-Exchange.showDelegates (0, "marlega@hfk.no")
-
-checkUser
-
-
-
 
 // Powershell manipulation...
+// Using display names for identity causes duplicate errors
+// This script requires a sesson configured against Exchange with credentials set: https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
+let createPowershellScript () =
+    let userList = ActiveDirectory.users () |> Seq.toList
 
-let diffList = 
-    [
-        "Alf Magne Veivåg"
-        "Andreas Fuglevand"
-        "Andreas Skaale Sælen"
-        "Anita Garlid Johannessen"
-        "Anita Rose Bakke"
-        "Anne Karin Davidsen"
-        "Arild Borgen"
-        "Arne Næss"
-        "Astrid Aarhus Byrknes"
-        "Athanasia Bletsa"
-        "Atle Rasmussen"
-        "Atle Kvåle"
-        "Benedicte Skjerping"
-        "Birte Myklebust"
-        "Bjørn Magnussen"
-        "Bjørn Erik Ofte"
-        "Bjørn Gisle Hodneland"
-        "Dag Bakke"
-        "Dan Stian Femoen"
-        "Eivind Kvamme"
-        "Eivind Moe"
-        "Elisabeth Helle"
-        "Elisabeth Valle Espetvedt"
-        "Endre Synnevåg"
-        "Espen Storetvedt"
-        "Espen Foseid Aakre"
-        "Gard Johanson"
-        "Geir Markhus"
-        "Geir Helleseth"
-        "Gisle Hauge"
-        "Gunn Berit Lunde Aarvik"
-        "Gunnar Bakke"
-        "Gustav Bahus"
-        "Heine Hanevik"
-        "Helge Finne"
-        "Helge Nævdal"
-        "Helge Finne"
-        "Ingeborg Borgen Takle"
-        "Ingunn Habbestad"
-        "Ivar Helland"
-        "Jan Erik Angelskår"
-        "Jarle Spjell"
-        "Johanna Haaland"
-        "Johannes Gjerstad"
-        "John Opdal"
-        "John Helge Gullaksen"
-        "Jonas Hausken"
-        "Jorge Ivan Chavarria"
-        "Kari Husa"
-        "Karina Garnes Reigstad"
-        "Kjartan Haugsnes"
-        "Kjell Havre"
-        "Kristian Strømme"
-        "Magne Fjell"
-        "Mariann Birkeland"
-        "Michael Andre Olsen Dahlstrøm"
-        "Monic Weber"
-        "Morten Myksvoll"
-        "Odd-Egil Mosseng"
-        "Ørjan Kinsarvik"
-        "Pål Kårbø"
-        "Rasmus Laupsa Rasmussen"
-        "Roald Stenseide"
-        "Roger Skoglie"
-        "Ruben Fosse"
-        "Rune Nilsen"
-        "Rune Haugsdal"
-        "Sissel Steiner"
-        "Stanley Hauge"
-        "Stein Jenssen"
-        "Stein Inge Ryssdal"
-        "Stian Villanger"
-        "Sveinung Valle"
-        "Sveinung Klyve"
-        "Terje Engevik"
-        "Tom-Christer Nilsen"
-        "Tommy Sævareid"
-        "Tore Geir Johannessen"
-        "Torill Selsvold Nyborg"
-        "Trond Standnes"
-        "Trond Oalann"
-        "Trude Riple"
-        "Vegard K Hopland Godvik"
-        "Wenche Espeland"
+    let template : Printf.StringFormat<string -> string -> string> = 
+        """Add-ADPermission -Identity "%s" -User "%s" -AccessRights ExtendedRight -ExtendedRights "Send As" """
 
 
-    ]
+    let printUsers = userList |> Seq.filter(fun u -> u.Email |> exists) |> Seq.toList
 
-let userList = ActiveDirectory.users () |> Seq.toList
+    let scriptLines =
+        let mutable i = 0
+        [ for u in printUsers do
+            yield sprintf """echo "%04i %s" """ i u.DisplayName
+            i <- i + 1
+            yield sprintf template u.DistinguishedName "Vismapost" ]
 
-let template : Printf.StringFormat<string -> string -> string> = 
-    """Add-ADPermission -Identity "%s" -User "%s" -AccessRights ExtendedRight -ExtendedRights "Send As" """
+    for i in 10 .. 11 do
+        printfn "%A" scriptLines.[i]
 
+    System.IO.File.WriteAllLines("C:\\temp\set_sendas.ps1", scriptLines, System.Text.Encoding.UTF8)
 
-let printUsers = userList |> Seq.filter(fun u -> diffList.Contains(u.DisplayName)) |> Seq.filter(fun u -> u.Email |> exists) |> Seq.toList
-
-let scriptLines =
-    let mutable i = 0
-    [ for u in printUsers do
-        yield sprintf """echo "%04i %s" """ i u.DisplayName
-        i <- i + 1
-        yield sprintf template u.Account "Vismapost" ]
-
-let e = System.Text.Encoding.UTF8
-System.IO.File.WriteAllLines("C:\\temp\set_sendas.ps1",scriptLines, e)
-
-
-for i in 10 .. 11 do
-    printfn "%A" scriptLines.[i]
 
