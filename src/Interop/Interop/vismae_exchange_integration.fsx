@@ -38,8 +38,9 @@ From : https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
 // TODO: log error for users missing email addresses in Visma E
 // TODO: Missing delegates on specific users: Hildegunn.Fischer@hfk.no, 6809:Tor.Oddvar.Sjovoll@hfk.no, 9137:Nevenka.Radic@hfk.no, 16088:Else.Vassenden@hfk.no, 16580:Kristoffer.Gilhus@hfk.no, 17333:Birthe.Haugen@hfk.no, 20531:Bente.Leivestad@hfk.no, 22032:Roald.Breistein@hfk.no, 22038:Hogne.Haktorson@hfk.no
 
-
-#r "../../packages/Microsoft.Exchange.WebServices/lib/40/Microsoft.Exchange.WebServices.dll"
+#I "../../packages/"
+#r "FAKE.Lib/lib/net451/FakeLib.dll"
+#r "Microsoft.Exchange.WebServices/lib/40/Microsoft.Exchange.WebServices.dll"
 #load "configuration.fsx"
 #load "ad_vismae_integration.fsx"
 
@@ -101,7 +102,9 @@ module Exchange =
     let setDelegate (delegateEmail : string) (forUser : string) =
         let scope  = System.Nullable(MeetingRequestsDeliveryScope.DelegatesAndMe)
         try
-            let ret = service.AddDelegates(impersonatedMailbox forUser, scope, new DelegateUser(delegateEmail)) |> Seq.head
+            let delegateUser = new DelegateUser(delegateEmail)
+            //delegateUser.Permissions  <- new DelegatePermissions 
+            let ret = service.AddDelegates(impersonatedMailbox forUser, scope, delegateUser) |> Seq.head
             match ret.Result with
             | ServiceResult.Success -> Success (sprintf "'%s' got delegate '%s'" forUser delegateEmail)
             | _ -> Error (sprintf "'%s' did not get delegate '%s': '%s'" forUser delegateEmail ret.ErrorMessage)            
@@ -190,10 +193,11 @@ module Integration =
 
 
 
-
-Integration.showActiveDirectoryUsersMissingDelegate delegateEmail
-//Integration.setMissingActiveDirectoryDelegates delegateEmail
-Integration.setDelegate 0 "Elizabeth.Gjessing@hfk.no" "vismapost@hfk.no"
+let doActions () =
+    failwith "This function is for interactive evaluation and should not be run."
+    Integration.showActiveDirectoryUsersMissingDelegate delegateEmail
+    Integration.setMissingActiveDirectoryDelegates delegateEmail |> Seq.filter (fun r -> match r with | Success x -> false | Error y -> true) |> Seq.toList |> ignore
+    Integration.setDelegate 0 "Elizabeth.Gjessing@hfk.no" "vismapost@hfk.no"
 
 
 let checkUser userMail =
@@ -203,3 +207,127 @@ let checkUser userMail =
 
     let ff = Exchange.setDelegate delegateEmail testMail
     Exchange.hasDelegate testMail delegateEmail
+
+
+Exchange.showDelegates (0, "marlega@hfk.no")
+Exchange.showDelegates (0, "marlega@hfk.no")
+
+checkUser
+
+
+
+
+// Powershell manipulation...
+
+let diffList = 
+    [
+        "Alf Magne Veivåg"
+        "Andreas Fuglevand"
+        "Andreas Skaale Sælen"
+        "Anita Garlid Johannessen"
+        "Anita Rose Bakke"
+        "Anne Karin Davidsen"
+        "Arild Borgen"
+        "Arne Næss"
+        "Astrid Aarhus Byrknes"
+        "Athanasia Bletsa"
+        "Atle Rasmussen"
+        "Atle Kvåle"
+        "Benedicte Skjerping"
+        "Birte Myklebust"
+        "Bjørn Magnussen"
+        "Bjørn Erik Ofte"
+        "Bjørn Gisle Hodneland"
+        "Dag Bakke"
+        "Dan Stian Femoen"
+        "Eivind Kvamme"
+        "Eivind Moe"
+        "Elisabeth Helle"
+        "Elisabeth Valle Espetvedt"
+        "Endre Synnevåg"
+        "Espen Storetvedt"
+        "Espen Foseid Aakre"
+        "Gard Johanson"
+        "Geir Markhus"
+        "Geir Helleseth"
+        "Gisle Hauge"
+        "Gunn Berit Lunde Aarvik"
+        "Gunnar Bakke"
+        "Gustav Bahus"
+        "Heine Hanevik"
+        "Helge Finne"
+        "Helge Nævdal"
+        "Helge Finne"
+        "Ingeborg Borgen Takle"
+        "Ingunn Habbestad"
+        "Ivar Helland"
+        "Jan Erik Angelskår"
+        "Jarle Spjell"
+        "Johanna Haaland"
+        "Johannes Gjerstad"
+        "John Opdal"
+        "John Helge Gullaksen"
+        "Jonas Hausken"
+        "Jorge Ivan Chavarria"
+        "Kari Husa"
+        "Karina Garnes Reigstad"
+        "Kjartan Haugsnes"
+        "Kjell Havre"
+        "Kristian Strømme"
+        "Magne Fjell"
+        "Mariann Birkeland"
+        "Michael Andre Olsen Dahlstrøm"
+        "Monic Weber"
+        "Morten Myksvoll"
+        "Odd-Egil Mosseng"
+        "Ørjan Kinsarvik"
+        "Pål Kårbø"
+        "Rasmus Laupsa Rasmussen"
+        "Roald Stenseide"
+        "Roger Skoglie"
+        "Ruben Fosse"
+        "Rune Nilsen"
+        "Rune Haugsdal"
+        "Sissel Steiner"
+        "Stanley Hauge"
+        "Stein Jenssen"
+        "Stein Inge Ryssdal"
+        "Stian Villanger"
+        "Sveinung Valle"
+        "Sveinung Klyve"
+        "Terje Engevik"
+        "Tom-Christer Nilsen"
+        "Tommy Sævareid"
+        "Tore Geir Johannessen"
+        "Torill Selsvold Nyborg"
+        "Trond Standnes"
+        "Trond Oalann"
+        "Trude Riple"
+        "Vegard K Hopland Godvik"
+        "Wenche Espeland"
+
+
+    ]
+
+let userList = ActiveDirectory.users () |> Seq.toList
+
+let template : Printf.StringFormat<string -> string -> string> = 
+    """Add-ADPermission -Identity "%s" -User "%s" -AccessRights ExtendedRight -ExtendedRights "Send As" """
+
+
+let printUsers = userList |> Seq.filter(fun u -> diffList.Contains(u.DisplayName)) |> Seq.filter(fun u -> u.Email |> exists) |> Seq.toList
+
+let scriptLines =
+    let mutable i = 0
+    [ for u in printUsers do
+        yield sprintf """echo "%04i %s" """ i u.DisplayName
+        i <- i + 1
+        yield sprintf template u.Account "Vismapost" ]
+
+let e = System.Text.Encoding.UTF8
+System.IO.File.WriteAllLines("C:\\temp\set_sendas.ps1",scriptLines, e)
+
+
+for i in 10 .. 11 do
+    printfn "%A" scriptLines.[i]
+

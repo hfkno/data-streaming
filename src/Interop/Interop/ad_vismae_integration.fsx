@@ -93,7 +93,8 @@ module ActiveDirectory =
         WorkPhone : string
         MobilePhone : string
         FirstName : string
-        LastName : string }
+        LastName : string
+        DistinguishedName : string }
     with 
         static member Default = 
           { EmployeeId = "-1"
@@ -104,7 +105,8 @@ module ActiveDirectory =
             WorkPhone = ""
             MobilePhone = ""
             FirstName = "Unknown"
-            LastName = "User" }
+            LastName = "User"
+            DistinguishedName = "LDAP://CN=UnknownUser,OU=IT-drift - IT-seksjonen,OU=HFK,DC=ad,DC=hfk,DC=no" }
 
     let private printProperties (user : UserPrincipal) = 
         let de = user.GetUnderlyingObject() :?> DirectoryEntry
@@ -160,7 +162,8 @@ module ActiveDirectory =
                         WorkPhone = user.VoiceTelephoneNumber |> safeString
                         MobilePhone = user |> mobilePhone
                         FirstName = user.GivenName |> safeString
-                        LastName = user.Surname |> safeString } }
+                        LastName = user.Surname |> safeString 
+                        DistinguishedName = user.DistinguishedName |> safeString } }
 
     /// Yields all users - quite slow on occasion...
     ///     Performance info:

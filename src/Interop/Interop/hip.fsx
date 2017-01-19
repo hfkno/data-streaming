@@ -72,6 +72,14 @@ for s in scheduler.GetJobGroupNames() do
 
 scheduler.Shutdown(true)
 
+// Job definition example
+// let job = 
+//     { new IJob with
+//          member this.Execute ...
+//        }
+
+
+
 
 
 // Basic types
