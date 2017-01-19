@@ -103,6 +103,8 @@ type ConsumerInstance =
 
 type ConfluenceAdapter(rootUrl) =
 
+    member x.rootUrl = rootUrl
+
     member x.url ending = rootUrl + "/" + ending
 
     member x.request(url, ?headers, ?httpMethod, ?body) : Result<string,string> =
@@ -324,10 +326,7 @@ module SchemaPersistence =
 
 module Streams =
     
-    let messageLog () = new Kafka("http://localhost:8082")
-    let schemaRegistry () = new SchemaRegistry("http://localhost:8081")
-
-
-
+    let messageLog () = new Kafka("http://BBORG-AARCOMY:8082")
+    let schemaRegistry () = new SchemaRegistry("http://BBORG-AARCOMY:8081")
 
 

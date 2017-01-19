@@ -196,7 +196,8 @@ module Integration =
 let doActions () =
     failwith "This function is for interactive evaluation and should not be run."
     Integration.showActiveDirectoryUsersMissingDelegate delegateEmail
-    Integration.setMissingActiveDirectoryDelegates delegateEmail |> Seq.filter (fun r -> match r with | Success x -> false | Error y -> true) |> Seq.toList |> ignore
+    Integration.setMissingActiveDirectoryDelegates delegateEmail 
+        |> Seq.filter (fun r -> match r with | Success x -> false | Error y -> true) |> Seq.toList |> ignore
     Integration.setDelegate 0 "Elizabeth.Gjessing@hfk.no" "vismapost@hfk.no"
 
 
@@ -212,7 +213,8 @@ let checkUser userMail =
 
 // Powershell manipulation...
 // Using display names for identity causes duplicate errors
-// This script requires a sesson configured against Exchange with credentials set: https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
+// This script requires a sesson configured against Exchange with credentials set:
+//     https://technet.microsoft.com/en-us/library/dd335083(v=exchg.160).aspx
 let createPowershellScript () =
     let userList = ActiveDirectory.users () |> Seq.toList
 

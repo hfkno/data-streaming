@@ -9,6 +9,7 @@
 
 open Fsharp_avro_generation
 open Streaming
+open System.Net
 open System.Linq
 open System.Collections.Generic
 open Newtonsoft.Json
@@ -100,6 +101,58 @@ type Integration =
 
  
 
+module SchemaLookup =
+    let find (t:'a) =
+        let ids = 
+            dict [ 
+                typeof<JobStatus>, 6
+                typeof<RandomTelemetry>, 7
+            ]
+        ids.Item(typeof<'a>)
+
+
+type ConnectionStatus = Active | Inactive
+
+[<AutoOpen>]
+module Utility =
+
+    let canConnectTo (uri:string) =
+        let conn () = 
+            async {
+                let req = WebRequest.CreateHttp(uri)
+                let! response = req.AsyncGetResponse()
+                return (response :?> HttpWebResponse).StatusCode }
+        try
+            Async.RunSynchronously(conn()) = HttpStatusCode.OK
+        with    
+            | _ -> false
+
+
+
+type KafkaProxy() =
+
+    let k = Streams.messageLog()
+
+    member x.pubToKafka (topic, message:'a) =
+        let schemaId = SchemaLookup.find typeof<'a>
+        k.publishVersionedMessage(topic, schemaId, message)
+
+    member x.pubToFile (topic, message:'a) =
+        let msgLine = sprintf "%s|%s" topic (message |> toJson)
+        let outPath = @"C:\\temp\kafka_msg_log.txt"
+        System.IO.File.AppendAllLines(outPath, [ msgLine ])
+
+
+
+    member x.publishVersionedMessage(topic, (message:'a)) =
+        match canConnectTo(k.rootUrl) with
+        | true -> x.pubToKafka (topic, message) |> ignore
+        | _ -> x.pubToFile (topic, message)
+       
+        
+            
+
+canConnectTo()
 
 
 // Message Generation

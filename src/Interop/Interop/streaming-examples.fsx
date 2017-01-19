@@ -110,7 +110,8 @@ let adUserTest =
       WorkPhone = ""
       MobilePhone = ""
       FirstName = "Testing"
-      LastName = "" }
+      LastName = "" 
+      DistinguishedName = "LDAP:\\OU=Unknown"}
 
 
 let schemaId = r.latestSchemaId("ad_user-value")
