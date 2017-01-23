@@ -9,6 +9,7 @@
 
 open Fsharp_avro_generation
 open Streaming
+open System.IO
 open System.Net
 open System.Linq
 open System.Collections.Generic
@@ -127,32 +128,35 @@ module Utility =
         with    
             | _ -> false
 
-
+    let fileExists = File.Exists
 
 type KafkaProxy() =
 
     let k = Streams.messageLog()
+    let logFile = @"C:\\temp\kafka_msg_log.txt"
+    let schemaId (forMsg :'a) = SchemaLookup.find typeof<'a>
 
     member x.pubToKafka (topic, message:'a) =
-        let schemaId = SchemaLookup.find typeof<'a>
-        k.publishVersionedMessage(topic, schemaId, message)
+        k.publishVersionedMessage(topic, message |> schemaId, message)
 
     member x.pubToFile (topic, message:'a) =
-        let msgLine = sprintf "%s|%s" topic (message |> toJson)
-        let outPath = @"C:\\temp\kafka_msg_log.txt"
-        System.IO.File.AppendAllLines(outPath, [ msgLine ])
-
-
+        let msgLine = sprintf "%s|%i|%s" topic (message |> schemaId) (message |> toJson)
+        File.AppendAllLines(logFile, [ msgLine ])
+        
+    
 
     member x.publishVersionedMessage(topic, (message:'a)) =
         match canConnectTo(k.rootUrl) with
-        | true -> x.pubToKafka (topic, message) |> ignore
+        | true -> 
+            if logFile |> fileExists then
+                () // pub every log message
+            x.pubToKafka (topic, message) |> ignore
         | _ -> x.pubToFile (topic, message)
        
         
             
 
-canConnectTo()
+//canConnectTo("http://localhost:3030/")
 
 
 // Message Generation
@@ -161,6 +165,11 @@ let utcNow = System.DateTime.UtcNow.ToString("s") + "Z"
 type PublicationInfo = 
     { Name : string
       SchemaId : int }
+
+
+let m = { Name = "teeeeeeeeeeeeesting"; SchemaId =3 }
+m |> toJson
+
 
 let pubInfo<'a> (name:string) (purpose:string) = 
     let schema = SchemaGenerator.generateSchema<'a> name

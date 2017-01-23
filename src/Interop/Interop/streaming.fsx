@@ -70,11 +70,11 @@ module Utility =
     type ProperCaseCamelCasePropertyNamesResolver() =
         inherit Serialization.DefaultContractResolver ()
         override x.ResolveDictionaryKey s = s
-
+    
     let toJson o =
         JsonConvert.SerializeObject(o, 
-            new JsonSerializerSettings(ContractResolver = new ProperCaseCamelCasePropertyNamesResolver()))
-
+            new JsonSerializerSettings(ContractResolver = new ProperCaseCamelCasePropertyNamesResolver(), TypeNameHandling=TypeNameHandling.All))
+            
     let encode = toJson
 
     let toType<'a> (jsonObjectList:string) =
