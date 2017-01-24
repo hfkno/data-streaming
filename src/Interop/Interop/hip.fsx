@@ -1,4 +1,4 @@
-﻿
+﻿ 
 
 #I "../../packages/"
 #r "Quartz/lib/net40-client/Quartz.dll"
@@ -103,13 +103,13 @@ type Integration =
  
 
 module SchemaLookup =
-    let find (t:'a) =
-        let ids = 
+    let private ids = 
             dict [ 
-                typeof<JobStatus>, 6
-                typeof<RandomTelemetry>, 7
+                typeof<JobStatus>, 4
+                typeof<RandomTelemetry>, 5
             ]
-        ids.Item(typeof<'a>)
+    let find (t:'a) =
+        ids.Item(t)
 
 
 type ConnectionStatus = Active | Inactive
@@ -167,10 +167,6 @@ type PublicationInfo =
       SchemaId : int }
 
 
-let m = { Name = "teeeeeeeeeeeeesting"; SchemaId =3 }
-m |> toJson
-
-
 let pubInfo<'a> (name:string) (purpose:string) = 
     let schema = SchemaGenerator.generateSchema<'a> name
     let schemaJson = sprintf """{"schema": "%s"}""" (schema.Schema.Replace("\"", "\\\""))
@@ -209,7 +205,7 @@ let simpleFill() =
     for i in 1 .. 10000 do
         printfn "%i" i
         printf "%A" 
-            (k.publishVersionedMessage("hfk.utility.test.orchestration.JobStatus_telemetry", 6, getReg()))
+            (k.publishVersionedMessage("hfk.utility.test.orchestration.JobStatus_telemetry", (SchemaLookup.find typeof<JobStatus>), getReg()))
 
 
 let massFill () = 
