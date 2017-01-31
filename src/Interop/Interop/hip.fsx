@@ -1,5 +1,7 @@
 ﻿ 
 
+
+ 
 #I "../../packages/"
 #r "Quartz/lib/net40-client/Quartz.dll"
 #r "Common.Logging/lib/net40/Common.Logging.dll"
@@ -9,6 +11,7 @@
 
 open Fsharp_avro_generation
 open Streaming
+open System
 open System.IO
 open System.Net
 open System.Linq
@@ -27,10 +30,6 @@ open Newtonsoft.Json.Linq
 // job puller can implement websockets and use webhooks to push data...
 
 
-
-
-
-
 // Setup a schedule
 // Kickoff the integrations using the Integration type defined below
 // Publish success to Kafka
@@ -38,49 +37,6 @@ open Newtonsoft.Json.Linq
     // employees
     // suppliers
     // Data transfers
-
-
-
-open Quartz
-open Quartz.Impl
-
-let schedulerFactory = StdSchedulerFactory()
-let scheduler = schedulerFactory.GetScheduler()
-scheduler.Start()
-
-type Job () =
-    interface IJob with
-        member x.Execute(context: IJobExecutionContext) =
-            printfn "%s" (System.DateTime.Now.ToString())
-
-let job = JobBuilder.Create<Job>().Build()
-
-let trigger =
-    TriggerBuilder.Create()
-        .WithSimpleSchedule(fun x ->
-            x.WithIntervalInSeconds(1).RepeatForever() |> ignore)
-        .Build()
-
-let t2 () = 
-    TriggerBuilder.Create()
-        .WithCronSchedule("cron cron cron")
-        .Build()
-
-let sch = scheduler.ScheduleJob(job, trigger) // |> ignore
-
-for s in scheduler.GetJobGroupNames() do
-    for key in scheduler.GetJobKeys(Matchers.GroupMatcher.GroupStartsWith(s)) do
-        printfn "%s:%s" (key.Group) (key.Name)
-
-scheduler.Shutdown(true)
-
-// Job definition example
-// let job = 
-//     { new IJob with
-//          member this.Execute ...
-//        }
-
-
 
 
 
