@@ -133,7 +133,7 @@ module Utility =
 type KafkaProxy() =
 
     let k = Streams.messageLog()
-    let logFile = @"C:\\temp\kafka_msg_log.txt"
+    let logFile = @"C:\\temp\\kafka_msg_log.txt"
     let schemaId (forMsg :'a) = SchemaLookup.find typeof<'a>
 
     member x.pubToKafka (topic, message:'a) =
@@ -141,9 +141,19 @@ type KafkaProxy() =
 
     member x.pubToFile (topic, message:'a) =
         let msgLine = sprintf "%s|%i|%s" topic (message |> schemaId) (message |> toJson)
-        File.AppendAllLines(logFile, [ msgLine ])
-        
-    
+        File.AppendAllLines(logFile, [ msgLine ])    
+
+
+    member x.pubFileToKafka fileName =
+        for line in File.ReadAllLines(fileName) do
+            let chunk = line.Split('|')
+            let topic, schema, mesageJson = chunk.[0], chunk.[1], chunk.[2]
+
+
+            failwith "THIS FUNCTION IS INCOMPLETE, THE FILE WILL NOT WRITE TO KAFKA"
+
+
+            ()
 
     member x.publishVersionedMessage(topic, (message:'a)) =
         match canConnectTo(k.rootUrl) with
@@ -154,8 +164,9 @@ type KafkaProxy() =
         | _ -> x.pubToFile (topic, message)
        
         
-            
-
+let line = "rawr|unf|nurrrrrr"          
+let chunk = line.Split('|')
+let topic, schema, mesageJson = chunk.[0], chunk.[1], chunk.[2]
 //canConnectTo("http://localhost:3030/")
 
 

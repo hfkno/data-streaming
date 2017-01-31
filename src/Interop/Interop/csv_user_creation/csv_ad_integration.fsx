@@ -4,7 +4,7 @@
 #r "System.DirectoryServices.AccountManagement"
 #r "System.Linq"
 #r "System.Xml.Linq.dll"
-#r "../../packages/FSharp.Data/lib/net40/FSharp.Data.dll"
+#r "dependecies/FSharp.Data/lib/net40/FSharp.Data.dll"
 open System
 open System.DirectoryServices
 open System.DirectoryServices.AccountManagement
@@ -16,8 +16,9 @@ open FSharp.Data.HttpRequestHeaders
 
 
 let makeUser firstname middlename lastname username email password =
-    use pc = new PrincipalContext(ContextType.Domain, "ad.hfk.no", "OU=HFK,DC=ad,DC=hfk,DC=no")
+    use pc = new PrincipalContext(ContextType.Domain, "ad.hfk.no", "OU=HFK,DC=ad,DC=hfk,DC=no")  // TODO: here in the OU string add the string for a user with a "manual" account
     use up = new UserPrincipal(pc)
+    
     up.Name <- firstname
     up.MiddleName <- middlename
     up.GivenName <- lastname
@@ -29,14 +30,13 @@ let makeUser firstname middlename lastname username email password =
 
 [<Literal>]
 let ``User Creation CSV Schema`` = "Firstname (string), Middlename (string), Lastname (string), Username (string), email (string), password (string)"
-type ``User Creation Data``= CsvProvider<Schema= ``User Creation CSV Schema``, Separators = ",", HasHeaders = true, Sample="data/usercreation_sample.csv">
+type ``User Creation Data``= CsvProvider<Schema= ``User Creation CSV Schema``, Separators = ",", HasHeaders = true, Sample="dependecies/usercreation_sample.csv">
 
 
-let users = ``User Creation Data``.Load(__SOURCE_DIRECTORY__ + "/data/usercreation_sample.csv")
+let users = ``User Creation Data``.Load(__SOURCE_DIRECTORY__ + "/dependencies/usercreation_sample.csv")
 for r in users.Rows do
     printfn "Creating user %s" r.Username
     makeUser r.Firstname r.Middlename r.Lastname r.Username r.Email r.Password
-
 
 
 for arg in fsi.CommandLineArgs do

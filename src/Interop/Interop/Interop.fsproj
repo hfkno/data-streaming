@@ -65,7 +65,6 @@
     <Compile Include="streaming-examples.fsx" />
     <None Include="hip.fsx" />
     <None Include="scratch.fsx" />
-    <None Include="csv_ad_integration.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Akka.DI.Core">
