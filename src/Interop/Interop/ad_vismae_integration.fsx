@@ -551,23 +551,16 @@ module Test =
     let showUsers (adUsers : ActiveDirectory.User list, veUsers : VismaEnterprise.User list) =
         
         let aus = query { for a in adUsers do
-                          //where (a.DisplayName.Contains("Andre"))
                           sortBy a.EmployeeId
                           select a } 
-                          //|> Seq.take(150) 
                           |> Seq.toList
 
 
         let ves = query { for a in veUsers do
-                          //where (a.DisplayName.Contains("Andre"))
                           sortBy a.Initials
                           select a } 
-                          //|> Seq.take(150) 
                           |> Seq.toList
 
-
-
-        //Integration.employeeActionsVerbose aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, c.Initials, c.DisplayName) |> Seq.toList
         Integration.employeeActions aus ves |> Seq.map (fun (a, (b,c)) -> a, b.EmployeeId, b.DisplayName, b.Account.ToUpper(), b.Email, b.EmployeeId, c.Initials, c.DisplayName) |> Seq.toList 
         
     let doUpdate (adUsers : ActiveDirectory.User seq, veUsers : VismaEnterprise.User seq) = 
@@ -575,11 +568,7 @@ module Test =
         let badinitials = ["TELLER"; "SKYSS"; "OPUS"]
         let updateActions = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList |> Seq.where (fun (a, (b, c)) -> (not <| badinitials.Contains(c.Initials)) && exists c.Initials) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
 
-
-        let mutable i = 0
         for action in updateActions do
-            i <- i + 1
-            printfn "Action %i" i
             Integration.processEmployeeAction action |> ignore
 
     let doSingleUpdate (adUsers : ActiveDirectory.User list, veUsers : VismaEnterprise.User list) =
@@ -595,7 +584,6 @@ module Test =
         let users = ActiveDirectory.users() |> Seq.toList
         for u in users do printfn "%A\r\n" u
 
-
         let aadwag = ActiveDirectory.usersMatching("Arne*") |> Seq.toList
         let testt = ActiveDirectory.usersMatching("Tonje*") |> Seq.toList
         let fagskole = ActiveDirectory.usersMatching("Fagsko*") |> Seq.toList
@@ -606,13 +594,9 @@ module Test =
                     select d } |> Seq.toList
         dis
 
-//let vus = VismaEnterprise.users() |> Seq.toList
+    let doFullUpdate () =
+        let adUsers = ActiveDirectory.users() |> Seq.toList
+        let vismaUsers = VismaEnterprise.users() |> Seq.toList
+        doUpdate (adUsers, vismaUsers)
 
-
-
-let doFullUpdate () =
-    let adUsers = ActiveDirectory.users() |> Seq.toList
-    let vismaUsers = VismaEnterprise.users() |> Seq.toList
-    Test.doUpdate (adUsers, vismaUsers)
-
-//doFullUpdate()
+//Test.doFullUpdate()

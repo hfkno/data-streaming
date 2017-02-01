@@ -14,14 +14,20 @@ open Quartz.Impl
 [<AutoOpen>]
 module Utility =
 
+    let localTimestamp (utc:Nullable<DateTimeOffset>) =
+        if utc.HasValue then
+            utc.Value.ToLocalTime().ToString()
+        else
+            "00.00.00 00:00:00"
+
     type ITrigger with 
         /// Gets the next time the trigger will fire, regardless of scheduler status
         member x.GetNextFireTime() =
-            x.GetFireTimeAfter(DateTimeOffset.Now |> Nullable)
-             .Value
-             .ToLocalTime()
-             .ToString()
+            x.GetFireTimeAfter(DateTimeOffset.Now |> Nullable) |> localTimestamp
 
+        /// Gets the next time the trigger will fire, regardless of scheduler status
+        member x.GetLastFireTime() =
+            x.GetPreviousFireTimeUtc() |> localTimestamp
 
 [<AutoOpen>]
 module Triggers = 
@@ -47,8 +53,8 @@ module Jobs =
     type ``AD to Visma E Synch`` () = 
         interface IJob with
             member x.Execute(context: IJobExecutionContext) =
-                printfn "Sycnhing Active Directory at: %s" (System.DateTime.Now.ToUniversalTime().ToString())
-                Ad_vismae_integration.doFullUpdate()
+                printfn "Synching Active Directory at: %s" (System.DateTime.Now.ToString())
+                Ad_vismae_integration.Test.doFullUpdate()
 
 module Schedule =
 
@@ -79,7 +85,9 @@ module Scheduler =
     let nextFires (schedule:(JobBuilder * ITrigger) list) =
         for job, trigger in schedule do
             printfn "job %s next firing at %s" (trigger.Description) (trigger.GetNextFireTime())
-
+    let lastFires (schedule:(JobBuilder * ITrigger) list) =
+        for job, trigger in schedule do
+            printfn "job %s last fired at %s" (trigger.Description) (trigger.GetLastFireTime())
 
 
 
@@ -89,67 +97,16 @@ module Test =
         Scheduler.setupSchedule()
         Scheduler.start()
         Scheduler.nextFires (Schedule.masterSchedule)
+        Scheduler.lastFires (Schedule.masterSchedule)
         Scheduler.stop()
         Scheduler.shutdown()
 
-//
-//type Job () =
-//    interface IJob with
-//        member x.Execute(context: IJobExecutionContext) =
-//            printfn "Here is the time: %s" (System.DateTime.Now.ToUniversalTime().ToString())
-//
-//let job = JobBuilder.Create<Job>().Build()
-//
-//let trigger =
-//    TriggerBuilder.Create()
-//        .WithSimpleSchedule(fun x ->
-//            x.WithIntervalInSeconds(1).RepeatForever() |> ignore)
-//        .Build()
-//
-//let t2 = 
-//    TriggerBuilder.Create()
-//        .WithCronSchedule("	0 0/1 * 1/1 * ? *") //* * * * * ?")
-//        .Build()
-//
-//let sch = scheduler.ScheduleJob(job, trigger) // |> ignore
-//
-//for s in scheduler.GetJobGroupNames() do
-//    for key in scheduler.GetJobKeys(Matchers.GroupMatcher.GroupStartsWith(s)) do
-//        printfn "%s:%s" (key.Group) (key.Name)
-//
-//
-//printfn "%s" (trigger.GetNextFireTime()) // .GetFireTimeAfter(DateTimeOffset.Now |> Nullable).Value.ToLocalTime().ToString())
-//
-//
-//printfn "%s" (trigger.GetNextFireTimeUtc().ToString())
-//printfn "%s" (trigger.GetNextFireTimeUtc().Value.ToLocalTime().ToString())
-//
-//
-//
-//
-//for j in scheduler.GetCurrentlyExecutingJobs() do
-//    printfn "%s %s" (j.JobDetail.Description) (j.NextFireTimeUtc.ToString())
-//
-//scheduler.Shutdown(true)
-
-// Job definition example
-// let job = 
-//     { new IJob with
-//          member this.Execute ...
-//        }
-
-
-// Setup a schedule
-// Run the Visma import every xxx minutes
-// Verify
-// Launch proper sched
 
 
 
 
 
 
-    
 
 
 
