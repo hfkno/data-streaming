@@ -1,10 +1,9 @@
-﻿<Properties>
-  <MonoDevelop.Ide.Workbench ActiveDocument="Interop/test/newmd.md">
+﻿<Properties StartupItem="Interop/Interop.fsproj">
+  <MonoDevelop.Ide.ItemProperties.Interop PreferredExecutionTarget="MonoDevelop.Default" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Interop/akka_basics.fsx">
     <Files>
-      <File FileName="Interop/akka_injestor.fsx" Line="63" Column="81" />
-      <File FileName="Interop/kafka-interop.fsx" Line="14" Column="1" />
-      <File FileName="Interop/akka_basics.fsx" Line="19" Column="1" />
-      <File FileName="Interop/test/newmd.md" Line="1" Column="1" />
+      <File FileName="Interop/kafka-interop.fsx" Line="15" Column="1" />
+      <File FileName="Interop/akka_basics.fsx" Line="320" Column="1" />
     </Files>
   </MonoDevelop.Ide.Workbench>
   <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />

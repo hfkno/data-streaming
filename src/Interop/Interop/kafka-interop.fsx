@@ -96,11 +96,12 @@ k.topicPartitionMetadata("basictest2")
 let valueSchema = """{\"type\": \"record\", \"name\": \"User\", \"fields\": [{\"name\": \"name\", \"type\": \"string\"}]}"""
 let records = """{"value": {"name": "testUser"}}"""
 let data = sprintf """{"value_schema": "%s", "records": [%s]}""" valueSchema records
-let topic = "LandoopTest"
+
+let topic = "test3"
 
 // Post a message with rolling data
-for i in 0 .. 80 do
-    let postData = data.Replace("%val%", sprintf "User%i" i)
+for i in 81 .. 89 do
+    let postData = data.Replace("er", sprintf "er%i" i)
     k.produceMessage(topic, postData) |> ignore
 
 // Init consumer
