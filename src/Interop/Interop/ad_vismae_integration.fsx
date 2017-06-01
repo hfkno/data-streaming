@@ -448,10 +448,16 @@ module Integration =
         let success = Success ""
         let (|IsUnregistered|_|) (vu:VismaEnterprise.User) = if vu.VismaId = VismaEnterprise.User.Default.VismaId then Some vu else None
         let (|IsMissingInitials|_|) (vu:VismaEnterprise.User) = if not <| exists vu.Initials then Some vu else None
+        let (|IsVismaSpecialAccount|_|) (vu:VismaEnterprise.User) = 
+            if [ "Webservice Bruker For integrasjoner"
+                 "Webservice Vedlikehold Brukere"
+                 "Unique Superbruker"
+                 "Webservice Gln" 
+                 "Webservice Innfordring Bruker" ]
+                .Contains(vu.DisplayName) then Some vu else None
         let (|IsNotRegistered|_|) (adu:ActiveDirectory.User) = if adu.EmployeeId = ActiveDirectory.User.Default.EmployeeId then Some adu else None
         let (|IsInactive|_|) (adu:ActiveDirectory.User) = if not <| adu.IsActive then Some adu else None
         let (|IsMissingEmail|_|) (adu:ActiveDirectory.User) = if not <| exists adu.Email then Some adu else None
-        
 
         let needsUpdating (adu:ActiveDirectory.User, vu:VismaEnterprise.User) =
             not (adu.DisplayName = vu.DisplayName 
@@ -466,6 +472,7 @@ module Integration =
             | IsInactive(adu), vu -> Deactivate
             | IsNotRegistered(adu), vu -> Ignore
             | IsMissingEmail(adu), vu -> Ignore
+            | adu, IsVismaSpecialAccount(vu) -> Ignore
             | adu, IsMissingInitials(vu) -> Ignore
             | adu, IsUnregistered(vu) -> Add
             | user when user |> needsUpdating -> Update
@@ -538,6 +545,13 @@ module Integration =
                     if validation then yield! action () ]
 
     let processEmployeeActions actions = actions |> Seq.map processEmployeeAction
+
+let adUsers = ActiveDirectory.users() |> Seq.toList
+let veUsers = VismaEnterprise.users() |> Seq.toList
+let actions = (Integration.employeeActions adUsers veUsers) |> Seq.toList
+
+let deActions = actions  |> Seq.filter(fun a -> match a with | Integration.UpdateAction.Deactivate, (_, _) -> true | _ -> false ) |> Seq.toList
+
 
 
 

@@ -96,6 +96,8 @@ module Test =
 
     let doTest () =
         Scheduler.setupSchedule()
+        let fjob = Scheduler.scheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.AnyGroup()) |> Seq.head
+        Scheduler.scheduler.TriggerJob(fjob)
         Scheduler.start()
         Scheduler.nextFires (Schedule.masterSchedule)
         Scheduler.lastFires (Schedule.masterSchedule)
