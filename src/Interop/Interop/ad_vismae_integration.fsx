@@ -568,8 +568,7 @@ module Test =
         let badinitials = ["TELLER"; "SKYSS"; "OPUS"]
         let updateActions = Integration.employeeActionsVerbose adUsers veUsers |> Seq.toList |> Seq.where (fun (a, (b, c)) -> (not <| badinitials.Contains(c.Initials)) && exists c.Initials) |> Seq.toList //|> Seq.where (fun (a, (b,c)) -> b.DisplayName.StartsWith("Aaron")) |> Seq.toList
 
-        for action in updateActions do
-            Integration.processEmployeeAction action |> ignore
+        [ for action in updateActions do yield! Integration.processEmployeeAction action ]
 
     let doSingleUpdate (adUsers : ActiveDirectory.User list, veUsers : VismaEnterprise.User list) =
         let updateTest = Integration.employeeActions adUsers veUsers |> Seq.head
@@ -600,3 +599,4 @@ module Test =
         doUpdate (adUsers, vismaUsers)
 
 //Test.doFullUpdate()
+//printfn "done"

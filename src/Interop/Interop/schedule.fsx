@@ -9,7 +9,7 @@
 open System
 open Quartz
 open Quartz.Impl
-
+open Ad_vismae_integration
 
 [<AutoOpen>]
 module Utility =
@@ -45,8 +45,7 @@ module Triggers =
                 x.WithIntervalInMinutes(30)
                  .RepeatForever() |> ignore)
             .Build()
-
-
+            
 [<AutoOpen>]
 module Jobs = 
 
@@ -54,7 +53,9 @@ module Jobs =
         interface IJob with
             member x.Execute(context: IJobExecutionContext) =
                 printfn "Synching Active Directory at: %s" (System.DateTime.Now.ToString())
-                Ad_vismae_integration.Test.doFullUpdate()
+                let results = Ad_vismae_integration.Test.doFullUpdate()
+                for r in results |> List.filter(fun r -> match r with Error m -> true | _ -> false) do 
+                    printfn "Error during synch: %A" r
 
 module Schedule =
 
