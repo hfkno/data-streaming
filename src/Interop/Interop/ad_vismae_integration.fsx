@@ -469,10 +469,10 @@ module Integration =
 
         let action (adu:ActiveDirectory.User, vu:VismaEnterprise.User) = 
             match adu, vu with
+            | adu, IsVismaSpecialAccount(vu) -> Ignore
             | IsInactive(adu), vu -> Deactivate
             | IsNotRegistered(adu), vu -> Ignore
             | IsMissingEmail(adu), vu -> Ignore
-            | adu, IsVismaSpecialAccount(vu) -> Ignore
             | adu, IsMissingInitials(vu) -> Ignore
             | adu, IsUnregistered(vu) -> Add
             | user when user |> needsUpdating -> Update
@@ -546,13 +546,30 @@ module Integration =
 
     let processEmployeeActions actions = actions |> Seq.map processEmployeeAction
 
-let adUsers = ActiveDirectory.users() |> Seq.toList
-let veUsers = VismaEnterprise.users() |> Seq.toList
-let actions = (Integration.employeeActions adUsers veUsers) |> Seq.toList
-
-let deActions = actions  |> Seq.filter(fun a -> match a with | Integration.UpdateAction.Deactivate, (_, _) -> true | _ -> false ) |> Seq.toList
-
-
+//let adUsers = ActiveDirectory.users() |> Seq.toList
+//let veUsers = VismaEnterprise.users() |> Seq.toList
+//let actions = (Integration.employeeActions adUsers veUsers) |> Seq.toList
+//
+//let deActions = actions  |> Seq.filter(fun a -> match a with | Integration.UpdateAction.Deactivate, (_, _) -> true | _ -> false ) |> Seq.toList
+//let listnames = for (action, (au, vu)) in deActions do printfn "%s" vu.DisplayName   //  deActions |> List.filter(fun (action, (au, vu)) ->  )
+//
+//
+//let (|IsVismaSpecialAccount|_|) (vu:VismaEnterprise.User) = 
+//    if [ "Webservice Bruker For integrasjoner"
+//         "Webservice Vedlikehold Brukere"
+//         "Unique Superbruker"
+//         "Webservice Gln" 
+//         "Webservice Innfordring Bruker" ]
+//        .Contains(vu.DisplayName) then Some vu else None
+//
+//// Gjestebruker for integrasjoner
+//
+//let apResults =
+//    [ for (action, (au, vu)) in deActions do
+//        yield match vu with
+//        | IsVismaSpecialAccount vu -> vu.DisplayName
+//        | _ -> sprintf "nope: '%s;" vu.DisplayName ]
+//for r in apResults do printfn "%s" r
 
 
 module Test =
